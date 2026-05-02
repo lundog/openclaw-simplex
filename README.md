@@ -206,7 +206,17 @@ This appends `openclaw-simplex` to the existing allowlist instead of replacing i
 }
 ```
 
-OpenClaw does not supervise `simplex-chat` for external plugins. If you want it to start automatically, run it as a host-managed user service such as `systemd --user` or `launchd`.
+OpenClaw does not supervise `simplex-chat` for external plugins. If you want it to start automatically, run it as a host-managed user service such as `systemd --user`, `launchd`, or SysV init.
+
+The plugin CLI can generate that service for the current host:
+
+```bash
+openclaw simplex runtime service plan
+openclaw simplex runtime service install
+openclaw simplex runtime service start
+```
+
+It auto-detects user systemd on Linux, launchd on macOS, or SysV init as a Linux fallback, prints the target file/commands, and asks for approval before every file write or service start/stop command.
 
 Keep the split clear:
 
@@ -214,6 +224,8 @@ Keep the split clear:
 - `simplex-chat` CLI flags such as `--device-name`, `--files-folder`, `--temp-folder`, proxy settings, relay selection, and `--maintenance` belong in the external runtime service definition
 
 For full persistent runtime examples and recommended startup-flag placement: https://openclaw-simplex.mintlify.app/guide/runtime-setup
+
+Deployment templates also live in `examples/`, including a Docker sidecar compose file, a hardened systemd unit, and a Caddy TLS proxy example.
 
 ---
 

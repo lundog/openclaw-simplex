@@ -26,6 +26,14 @@ import {
   getSimplexRuntimeStatus,
 } from "../simplex/services/runtime-status.js";
 import { runMigration } from "./migration.js";
+import {
+  type RuntimeServiceOptions,
+  runRuntimeServiceInstallCli,
+  runRuntimeServicePlanCli,
+  runRuntimeServiceStartCli,
+  runRuntimeServiceStatusCli,
+  runRuntimeServiceStopCli,
+} from "./runtime-service.js";
 
 export { migrateConfigObject, migrateStateFiles } from "./migration.js";
 
@@ -40,6 +48,8 @@ type InviteCliOptions = {
 type AccountCliOptions = {
   accountId?: string;
 };
+
+type RuntimeServiceCliOptions = RuntimeServiceOptions;
 
 type RequestCliOptions = AccountCliOptions & {
   contactRequestId?: string;
@@ -385,6 +395,81 @@ export function registerSimplexCliMetadata(api: OpenClawPluginApi): void {
         .option("--account-id <accountId>", "Use a specific SimpleX account")
         .action(async (opts: AccountCliOptions) => {
           await runRuntimeDoctorCli(api, opts);
+        });
+
+      const runtimeService = runtime
+        .command("service")
+        .description("Manage a host service for the external simplex-chat runtime");
+
+      runtimeService
+        .command("plan")
+        .description("Show the detected service manager, target file, and commands")
+        .option(
+          "--provider <provider>",
+          "Service manager: auto, systemd, launchd, or sysvinit",
+          "auto"
+        )
+        .option("--port <port>", "simplex-chat WebSocket port", "5225")
+        .option("--simplex-chat-path <path>", "Path to simplex-chat", "simplex-chat")
+        .option("--device-name <name>", "SimpleX device name", "OpenClaw SimpleX")
+        .option("--files-folder <path>", "SimpleX files folder", "~/.simplex/files")
+        .option("--temp-folder <path>", "SimpleX temp folder", "~/.simplex/tmp")
+        .action(async (opts: RuntimeServiceCliOptions) => {
+          await runRuntimeServicePlanCli(opts);
+        });
+
+      runtimeService
+        .command("install")
+        .description("Write the service file after interactive approval")
+        .option(
+          "--provider <provider>",
+          "Service manager: auto, systemd, launchd, or sysvinit",
+          "auto"
+        )
+        .option("--port <port>", "simplex-chat WebSocket port", "5225")
+        .option("--simplex-chat-path <path>", "Path to simplex-chat", "simplex-chat")
+        .option("--device-name <name>", "SimpleX device name", "OpenClaw SimpleX")
+        .option("--files-folder <path>", "SimpleX files folder", "~/.simplex/files")
+        .option("--temp-folder <path>", "SimpleX temp folder", "~/.simplex/tmp")
+        .option("--dry-run", "Print the plan without writing files", false)
+        .action(async (opts: RuntimeServiceCliOptions) => {
+          await runRuntimeServiceInstallCli(opts);
+        });
+
+      runtimeService
+        .command("start")
+        .description("Start the service after interactive approval")
+        .option(
+          "--provider <provider>",
+          "Service manager: auto, systemd, launchd, or sysvinit",
+          "auto"
+        )
+        .action(async (opts: RuntimeServiceCliOptions) => {
+          await runRuntimeServiceStartCli(opts);
+        });
+
+      runtimeService
+        .command("stop")
+        .description("Stop the service after interactive approval")
+        .option(
+          "--provider <provider>",
+          "Service manager: auto, systemd, launchd, or sysvinit",
+          "auto"
+        )
+        .action(async (opts: RuntimeServiceCliOptions) => {
+          await runRuntimeServiceStopCli(opts);
+        });
+
+      runtimeService
+        .command("status")
+        .description("Show service status")
+        .option(
+          "--provider <provider>",
+          "Service manager: auto, systemd, launchd, or sysvinit",
+          "auto"
+        )
+        .action(async (opts: RuntimeServiceCliOptions) => {
+          await runRuntimeServiceStatusCli(opts);
         });
 
       const requests = command.command("requests").description("SimpleX contact request helpers");

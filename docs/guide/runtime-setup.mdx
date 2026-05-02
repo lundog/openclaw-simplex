@@ -9,6 +9,36 @@ Use this page after the first setup is already working and you want to make the 
 
 If you want the SimpleX runtime to start automatically on login or machine boot, let the host OS supervise it and keep OpenClaw focused on the channel connection itself.
 
+The plugin CLI can generate and install a host service for the current machine:
+
+```bash
+openclaw simplex runtime service plan
+openclaw simplex runtime service install
+openclaw simplex runtime service start
+openclaw simplex runtime service status
+```
+
+The service helper auto-detects <code>systemd --user</code> on Linux, <code>launchd</code> on macOS, and SysV init as a Linux fallback. It prints the generated service file and command plan first, and it asks for interactive approval before every file write or service start/stop command. Use <code>--provider systemd</code>, <code>--provider launchd</code>, or <code>--provider sysvinit</code> to override detection.
+
+Common install options:
+
+```bash
+openclaw simplex runtime service install \
+  --port 5225 \
+  --simplex-chat-path ~/.local/bin/simplex-chat \
+  --device-name "OpenClaw SimpleX" \
+  --files-folder ~/.simplex/files \
+  --temp-folder ~/.simplex/tmp
+```
+
+Use <code>--dry-run</code> with <code>install</code> to print the plan without writing files.
+
+The repo also ships deployment templates under <code>examples/</code>:
+
+- <code>examples/docker-compose.sidecar.yml</code>: OpenClaw plus a private <code>simplex-chat</code> sidecar network.
+- <code>examples/systemd/simplex-chat.service</code>: hardened user service template.
+- <code>examples/caddy/Caddyfile</code>: TLS/auth proxy example for exceptional remote WebSocket access.
+
 ## Decide which settings go where
 
 Use this rule:
@@ -30,7 +60,9 @@ Runtime-side startup flags:
 - local storage/layout: <code>--database</code>, <code>--files-folder</code>, <code>--temp-folder</code>, <code>--log-file</code>
 - runtime process behavior: <code>--device-name</code>, <code>--maintenance</code>, <code>--mute</code>, <code>--mark-read</code>
 
-### Create the service
+### Manual service files
+
+The CLI helper above is the preferred path. These examples show what it writes and are useful when you want to manage the service definition yourself.
 
 <Tabs>
   <Tab title="Linux">

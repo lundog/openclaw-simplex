@@ -76,6 +76,41 @@ Use a named account when the channel has multiple accounts:
 openclaw simplex runtime doctor --account-id support
 ```
 
+## Runtime service
+
+Preview the auto-detected service manager, target file, and commands:
+
+```bash
+openclaw simplex runtime service plan
+```
+
+Install a user service for <code>simplex-chat</code>. The command prints the plan and asks before writing the service file:
+
+```bash
+openclaw simplex runtime service install
+```
+
+Start or stop the service. These commands ask before running <code>systemctl</code> or <code>launchctl</code>:
+
+```bash
+openclaw simplex runtime service start
+openclaw simplex runtime service stop
+```
+
+Check service status:
+
+```bash
+openclaw simplex runtime service status
+```
+
+Override auto-detection when needed:
+
+```bash
+openclaw simplex runtime service plan --provider systemd
+openclaw simplex runtime service plan --provider launchd
+openclaw simplex runtime service plan --provider sysvinit
+```
+
 ## Invite and address management
 
 Create a one-time invite link and print a terminal QR code:
