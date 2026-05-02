@@ -8,8 +8,10 @@ function account(config: ResolvedSimplexAccount["config"] = {}): ResolvedSimplex
     accountId: "default",
     enabled: true,
     configured: true,
-    mode: "node",
-    dbFilePrefix: "/tmp/simplex",
+    mode: "external",
+    wsUrl: "ws://127.0.0.1:5225",
+    wsHost: "127.0.0.1",
+    wsPort: 5225,
     config,
   };
 }

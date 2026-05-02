@@ -6,7 +6,6 @@ import {
   listSimplexAccountIds,
   resolveDefaultSimplexAccountId,
   resolveSimplexAccount,
-  SIMPLEX_CLI_DEFAULT_DB_PREFIX,
 } from "./accounts.js";
 
 describe("simplex accounts", () => {
@@ -57,18 +56,22 @@ describe("simplex accounts", () => {
     expect(resolveDefaultSimplexAccountId(cfg)).toBe("beta");
   });
 
-  it("merges node runtime config across base and account", () => {
+  it("merges WebSocket runtime config across base and account", () => {
     const cfg = {
       channels: {
         "openclaw-simplex": {
           enabled: true,
-          displayName: "Base",
-          connectTimeoutMs: 4111,
-          dbFilePrefix: "/tmp/simplex-base",
+          connection: {
+            wsHost: "127.0.0.1",
+            wsPort: 5225,
+            connectTimeoutMs: 4111,
+          },
           accounts: {
             alpha: {
-              connectTimeoutMs: 5225,
-              dbFilePrefix: "/tmp/simplex-alpha",
+              connection: {
+                wsPort: 6225,
+                connectTimeoutMs: 5225,
+              },
             },
           },
         },
@@ -76,10 +79,9 @@ describe("simplex accounts", () => {
     } as OpenClawConfig;
 
     const account = resolveSimplexAccount({ cfg, accountId: "alpha" });
-    expect(account.mode).toBe("node");
-    expect(account.config.displayName).toBe("Base");
-    expect(account.config.connectTimeoutMs).toBe(5225);
-    expect(account.dbFilePrefix).toBe("/tmp/simplex-alpha");
+    expect(account.mode).toBe("external");
+    expect(account.wsUrl).toBe("ws://127.0.0.1:6225");
+    expect(account.config.connection?.connectTimeoutMs).toBe(5225);
     expect(account.enabled).toBe(true);
   });
 
@@ -111,22 +113,24 @@ describe("simplex accounts", () => {
     expect(resolveSimplexAccount({ cfg: cfg2, accountId: "alpha" }).enabled).toBe(false);
   });
 
-  it("uses explicit dbFilePrefix for node runtime storage", () => {
+  it("uses explicit wsUrl for external runtime", () => {
     const cfg = {
       channels: {
         "openclaw-simplex": {
-          dbFilePrefix: "~/.simplex/openclaw-bot",
+          connection: {
+            wsUrl: "ws://127.0.0.1:5225",
+          },
         },
       },
     } as OpenClawConfig;
 
     const account = resolveSimplexAccount({ cfg, accountId: "default" });
-    expect(account.mode).toBe("node");
+    expect(account.mode).toBe("external");
     expect(account.configured).toBe(true);
-    expect(account.dbFilePrefix).toBe("~/.simplex/openclaw-bot");
+    expect(account.wsUrl).toBe("ws://127.0.0.1:5225");
   });
 
-  it("uses the SimpleX CLI default database prefix for the default account", () => {
+  it("does not treat an empty channel section as configured", () => {
     const cfg = {
       channels: {
         "openclaw-simplex": {
@@ -136,46 +140,8 @@ describe("simplex accounts", () => {
     } as OpenClawConfig;
 
     const account = resolveSimplexAccount({ cfg, accountId: "default" });
-    expect(account.configured).toBe(true);
-    expect(account.dbFilePrefix).toBe(SIMPLEX_CLI_DEFAULT_DB_PREFIX);
-  });
-
-  it("does not derive database prefixes for named accounts", () => {
-    const cfg = {
-      channels: {
-        "openclaw-simplex": {
-          accounts: {
-            ops: {
-              displayName: "Ops",
-            },
-          },
-        },
-      },
-    } as OpenClawConfig;
-
-    const account = resolveSimplexAccount({ cfg, accountId: "ops" });
-    expect(account.mode).toBe("node");
     expect(account.configured).toBe(false);
-    expect(account.dbFilePrefix).toBeUndefined();
-  });
-
-  it("allows named accounts to inherit an explicit base database prefix", () => {
-    const cfg = {
-      channels: {
-        "openclaw-simplex": {
-          dbFilePrefix: "/tmp/simplex-shared",
-          accounts: {
-            ops: {
-              displayName: "Ops",
-            },
-          },
-        },
-      },
-    } as OpenClawConfig;
-
-    const account = resolveSimplexAccount({ cfg, accountId: "ops" });
-    expect(account.configured).toBe(true);
-    expect(account.dbFilePrefix).toBe("/tmp/simplex-shared");
+    expect(account.wsUrl).toBe("ws://127.0.0.1:5225");
   });
 
   it("treats missing channel config as unconfigured", () => {
@@ -185,29 +151,13 @@ describe("simplex accounts", () => {
     expect(resolveSimplexAccount({ cfg, accountId: "default" }).configured).toBe(false);
   });
 
-  it("treats the default account as configured when the channel section exists", () => {
-    const cfg = {
-      channels: {
-        "openclaw-simplex": {
-          displayName: "OpenClaw SimpleX",
-        },
-      },
-    } as OpenClawConfig;
-
-    expect(hasMeaningfulSimplexConfig({ cfg })).toBe(true);
-    expect(resolveSimplexAccount({ cfg, accountId: "default" }).configured).toBe(true);
-    expect(resolveSimplexAccount({ cfg, accountId: "default" }).dbFilePrefix).toBe(
-      SIMPLEX_CLI_DEFAULT_DB_PREFIX
-    );
-  });
-
-  it("still reads legacy nested connection config before migration", () => {
+  it("supports nested connection config", () => {
     const cfg = {
       channels: {
         "openclaw-simplex": {
           connection: {
-            dbFilePrefix: "/tmp/legacy-simplex",
-            displayName: "Legacy",
+            wsHost: "localhost",
+            wsPort: 7001,
           },
         },
       },
@@ -215,7 +165,6 @@ describe("simplex accounts", () => {
 
     const account = resolveSimplexAccount({ cfg, accountId: "default" });
     expect(account.configured).toBe(true);
-    expect(account.dbFilePrefix).toBe("/tmp/legacy-simplex");
-    expect(account.config.displayName).toBe("Legacy");
+    expect(account.wsUrl).toBe("ws://localhost:7001");
   });
 });

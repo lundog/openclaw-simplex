@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import {
-  readSimplexPackageVersion,
+  readSimplexRuntimeVersion,
   resolveRuntimeAccount,
   withActiveSimplexUser,
 } from "../runtime/account.js";
@@ -11,8 +11,8 @@ export type SimplexRuntimeStatusResult = {
   enabled: boolean;
   configured: boolean;
   mode: string;
-  dbFilePrefix: string | null;
-  packageVersion: string | null;
+  wsUrl: string | null;
+  runtimeVersion: string | null;
   runtime: {
     activeClient: boolean;
     connected: boolean;
@@ -38,13 +38,13 @@ export async function getSimplexRuntimeStatus(params: {
   const connection = activeClient?.getConnectionState();
   const details = await withActiveSimplexUser({
     account,
-    run: async (userId, api) => {
+    run: async (userId, client) => {
       const [activeUser, address, contacts, groups, users] = await Promise.all([
-        api.apiGetActiveUser(),
-        api.apiGetUserAddress(userId).catch(() => undefined),
-        api.apiListContacts(userId).catch(() => []),
-        api.apiListGroups(userId).catch(() => []),
-        api.apiListUsers().catch(() => []),
+        client.getActiveUser(),
+        client.getAddress().catch(() => undefined),
+        client.listContacts(userId).catch(() => []),
+        client.listGroups({ userId }).catch(() => []),
+        client.listUsers().catch(() => []),
       ]);
       return { activeUser, address, contacts, groups, users };
     },
@@ -55,8 +55,8 @@ export async function getSimplexRuntimeStatus(params: {
     enabled: account.enabled,
     configured: account.configured,
     mode: account.mode,
-    dbFilePrefix: account.dbFilePrefix ?? null,
-    packageVersion: readSimplexPackageVersion(),
+    wsUrl: account.wsUrl ?? null,
+    runtimeVersion: readSimplexRuntimeVersion(),
     runtime: {
       activeClient: Boolean(activeClient),
       connected: connection?.connected ?? true,

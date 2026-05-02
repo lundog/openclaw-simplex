@@ -94,7 +94,9 @@ describe("simplex migration config", () => {
       channels: {
         [CHANNEL_ID]: {
           enabled: true,
-          dbFilePrefix: "~/.openclaw/simplex/openclaw-simplex",
+          connection: {
+            mode: "external",
+          },
           accounts: {
             ops: {
               allowFrom: ["*"],
@@ -148,8 +150,11 @@ describe("simplex migration config", () => {
     expect(nextConfig.channels).toEqual({
       [CHANNEL_ID]: {
         enabled: true,
-        dbFilePrefix: "~/.openclaw/simplex/kept",
-        connectTimeoutMs: 7000,
+        connection: {
+          wsUrl: "ws://127.0.0.1:5225",
+          connectTimeoutMs: 7000,
+          mode: "external",
+        },
         dmPolicy: "pairing",
         allowFrom: ["alice"],
         accounts: {
@@ -157,8 +162,10 @@ describe("simplex migration config", () => {
             name: "Ops",
             allowFrom: ["bob"],
             groupAllowFrom: ["group:ops"],
-            dbFilePrefix: "~/.openclaw/simplex/openclaw-simplex-ops",
-            displayName: "Ops Bot",
+            connection: {
+              wsUrl: "ws://127.0.0.1:5226",
+              mode: "external",
+            },
           },
         },
       },
@@ -170,10 +177,10 @@ describe("simplex migration config", () => {
       `config: removed legacy runtime field(s) from channels.${CHANNEL_ID}: cliPath, managed, wsUrl`
     );
     expect(result.changed).toContain(
-      `config: removed legacy runtime field(s) from channels.${CHANNEL_ID}.connection: authToken, wsUrl`
+      `config: removed legacy runtime field(s) from channels.${CHANNEL_ID}.connection: authToken, dbFilePrefix`
     );
     expect(result.changed).toContain(
-      `config: removed legacy runtime field(s) from channels.${CHANNEL_ID}.accounts.ops.connection: wsUrl`
+      `config: removed legacy runtime field(s) from channels.${CHANNEL_ID}.accounts.ops.connection: displayName`
     );
   });
 
@@ -200,18 +207,22 @@ describe("simplex migration config", () => {
 
     expect(nextConfig.channels).toEqual({
       [CHANNEL_ID]: {
-        dbFilePrefix: "~/.openclaw/simplex/openclaw-simplex",
-        fullName: "SimpleX Agent",
+        connection: {
+          wsUrl: "ws://localhost:5225",
+          mode: "external",
+        },
         accounts: {
           support: {
-            autoAcceptFiles: false,
-            dbFilePrefix: "~/.openclaw/simplex/openclaw-simplex-support",
+            connection: {
+              autoAcceptFiles: false,
+              mode: "external",
+            },
           },
         },
       },
     });
     expect(result.changed).toContain(
-      `config: removed legacy runtime field(s) from channels.${CHANNEL_ID}.connection: wsUrl`
+      `config: removed legacy runtime field(s) from channels.${CHANNEL_ID}.connection: fullName`
     );
     expect(result.changed).toContain(
       `config: removed legacy runtime field(s) from channels.${CHANNEL_ID}.accounts.support: managed`
@@ -351,7 +362,10 @@ describe("simplex migration command", () => {
         plugins: {},
         channels: {
           [CHANNEL_ID]: {
-            dbFilePrefix: "~/.openclaw/simplex/kept",
+            connection: {
+              wsUrl: "ws://127.0.0.1:5225",
+              mode: "external",
+            },
           },
         },
       },

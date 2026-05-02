@@ -24,7 +24,7 @@ describe("simplex heartbeat adapter", () => {
         cfg: {
           channels: {
             "openclaw-simplex": {
-              dbFilePrefix: "/tmp/openclaw-simplex-test",
+              connection: { wsUrl: "ws://127.0.0.1:5225" },
             },
           },
         } as OpenClawConfig,
@@ -43,7 +43,7 @@ describe("simplex heartbeat adapter", () => {
         cfg: {
           channels: {
             "openclaw-simplex": {
-              dbFilePrefix: "/tmp/openclaw-simplex-test",
+              connection: { wsUrl: "ws://127.0.0.1:5225" },
               allowFrom: ["alice", "@bob"],
               groupAllowFrom: ["group:ops"],
             },
@@ -60,7 +60,7 @@ describe("simplex heartbeat adapter", () => {
         cfg: {
           channels: {
             "openclaw-simplex": {
-              dbFilePrefix: "/tmp/openclaw-simplex-test",
+              connection: { wsUrl: "ws://127.0.0.1:5225" },
               allowFrom: ["alice"],
               groupAllowFrom: ["group:ops"],
             },

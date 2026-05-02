@@ -1,15 +1,15 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
-import type { SimplexApiGroupMemberRole, SimplexApiGroupProfile } from "../../types/simplex.js";
+import type { SimplexGroupMemberRole, SimplexGroupProfile } from "../../types/simplex.js";
 import { resolveRuntimeAccount, withActiveSimplexUser } from "../runtime/account.js";
 
 const GROUP_MEMBER_ROLES = new Set(["observer", "author", "member", "moderator", "admin", "owner"]);
 
-function readRole(value: unknown, fallback: string): SimplexApiGroupMemberRole {
+function readRole(value: unknown, fallback: string): SimplexGroupMemberRole {
   const role = typeof value === "string" ? value.trim().toLowerCase() : fallback;
   if (!GROUP_MEMBER_ROLES.has(role)) {
     throw new Error(`role must be one of ${[...GROUP_MEMBER_ROLES].join(", ")}`);
   }
-  return role as SimplexApiGroupMemberRole;
+  return role as SimplexGroupMemberRole;
 }
 
 function readGroupId(value: unknown): number {
@@ -50,14 +50,14 @@ export async function createSimplexGroup(params: {
     throw new Error("displayName is required");
   }
   const account = resolveRuntimeAccount(params.cfg, params.accountId);
-  const profile: SimplexApiGroupProfile = {
+  const profile: SimplexGroupProfile = {
     displayName,
     fullName: params.fullName?.trim() ?? "",
     description: params.description?.trim() || undefined,
   };
   const group = await withActiveSimplexUser({
     account,
-    run: (userId, api) => api.apiNewGroup(userId, profile),
+    run: (_userId, client) => client.createGroup(profile),
   });
   return { accountId: account.accountId, group };
 }
@@ -67,15 +67,15 @@ export async function createSimplexGroupLink(params: {
   accountId?: string | null;
   groupId: unknown;
   role?: unknown;
-}): Promise<{ accountId: string; groupId: number; role: SimplexApiGroupMemberRole; link: string }> {
+}): Promise<{ accountId: string; groupId: number; role: SimplexGroupMemberRole; link: string }> {
   const account = resolveRuntimeAccount(params.cfg, params.accountId);
   const groupId = readGroupId(params.groupId);
   const role = readRole(params.role, "member");
-  const link = await withActiveSimplexUser({
+  const result = await withActiveSimplexUser({
     account,
-    run: (_userId, api) => api.apiCreateGroupLink(groupId, role),
+    run: (_userId, client) => client.createGroupLink({ groupId, role }),
   });
-  return { accountId: account.accountId, groupId, role, link };
+  return { accountId: account.accountId, groupId, role, link: result.link ?? "" };
 }
 
 export async function listSimplexGroupLink(params: {
@@ -87,19 +87,13 @@ export async function listSimplexGroupLink(params: {
   const groupId = readGroupId(params.groupId);
   const result = await withActiveSimplexUser({
     account,
-    run: async (_userId, api) => {
-      const [link, linkInfo] = await Promise.all([
-        api.apiGetGroupLinkStr(groupId),
-        api.apiGetGroupLink(groupId).catch(() => null),
-      ]);
-      return { link, linkInfo };
-    },
+    run: (_userId, client) => client.getGroupLink(groupId),
   });
   return {
     accountId: account.accountId,
     groupId,
     link: linkToString(result.link),
-    linkInfo: result.linkInfo,
+    linkInfo: result.response,
   };
 }
 
@@ -112,7 +106,7 @@ export async function revokeSimplexGroupLink(params: {
   const groupId = readGroupId(params.groupId);
   await withActiveSimplexUser({
     account,
-    run: (_userId, api) => api.apiDeleteGroupLink(groupId),
+    run: (_userId, client) => client.deleteGroupLink(groupId),
   });
   return { accountId: account.accountId, groupId, revoked: true };
 }

@@ -1,11 +1,9 @@
-import { createRequire } from "node:module";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import { resolveDefaultSimplexAccountId, resolveSimplexAccount } from "../../config/accounts.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
-import type { SimplexChatApi, SimplexLogger } from "../../types/simplex.js";
-import { withSimplexApi } from "../runtime/transport.js";
-
-const require = createRequire(import.meta.url);
+import type { SimplexLogger } from "../../types/simplex.js";
+import type { SimplexClient } from "./client.js";
+import { withSimplexClient } from "./transport.js";
 
 export function resolveRuntimeAccount(
   cfg: OpenClawConfig,
@@ -26,27 +24,22 @@ export function resolveRuntimeAccount(
 export async function withActiveSimplexUser<T>(params: {
   account: ResolvedSimplexAccount;
   logger?: SimplexLogger;
-  run: (userId: number, api: SimplexChatApi) => Promise<T>;
+  run: (userId: number, client: SimplexClient) => Promise<T>;
 }): Promise<T> {
-  return await withSimplexApi({
+  return await withSimplexClient({
     account: params.account,
     logger: params.logger,
-    run: async (api) => {
-      const user = await api.apiGetActiveUser();
-      const userId = user?.userId;
-      if (typeof userId !== "number") {
+    run: async (client) => {
+      const user = (await client.getActiveUser()) as Record<string, unknown> | undefined;
+      const userId = typeof user?.userId === "number" ? user.userId : Number(user?.userId);
+      if (!Number.isFinite(userId)) {
         throw new Error(`SimpleX account "${params.account.accountId}" has no active user`);
       }
-      return await params.run(userId, api);
+      return await params.run(Math.trunc(userId), client);
     },
   });
 }
 
-export function readSimplexPackageVersion(): string | null {
-  try {
-    const pkg = require("simplex-chat/package.json") as { version?: unknown };
-    return typeof pkg.version === "string" ? pkg.version : null;
-  } catch {
-    return null;
-  }
+export function readSimplexRuntimeVersion(): string | null {
+  return null;
 }

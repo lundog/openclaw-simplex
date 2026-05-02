@@ -70,8 +70,8 @@ async function sendSimplexPayload(params: {
   return await sendSimplexComposedMessages({
     chatRef: params.chatRef,
     composedMessages,
-    send: (apiChatRef, messages) =>
-      params.client.withApi((api) => api.apiSendMessages(apiChatRef, messages)),
+    send: (chatRef, messages) =>
+      params.client.sendMessages({ chatRef, composedMessages: messages }),
   });
 }
 

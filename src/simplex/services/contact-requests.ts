@@ -30,7 +30,7 @@ export async function acceptSimplexContactRequest(params: {
   const account = resolveRuntimeAccount(params.cfg, params.accountId);
   const contact = await withActiveSimplexUser({
     account,
-    run: (_userId, api) => api.apiAcceptContactRequest(params.contactRequestId),
+    run: (_userId, client) => client.acceptContactRequest(params.contactRequestId),
   });
   await deleteStoredSimplexContactRequest({
     accountId: account.accountId,
@@ -52,7 +52,7 @@ export async function rejectSimplexContactRequest(params: {
   const account = resolveRuntimeAccount(params.cfg, params.accountId);
   await withActiveSimplexUser({
     account,
-    run: (_userId, api) => api.apiRejectContactRequest(params.contactRequestId),
+    run: (_userId, client) => client.rejectContactRequest(params.contactRequestId),
   });
   await deleteStoredSimplexContactRequest({
     accountId: account.accountId,

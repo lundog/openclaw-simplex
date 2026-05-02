@@ -1,21 +1,14 @@
 import type { ChannelMessageActionName } from "openclaw/plugin-sdk/channel-contract";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import { buildComposedMessages } from "../channel/media/simplex-media.js";
-import {
-  parseSimplexApiChatRef,
-  resolveSimplexChatItemId,
-  toSimplexApiChatRef,
-  toSimplexApiChatType,
-} from "../simplex/runtime/api.js";
-import { withSimplexApi } from "../simplex/runtime/transport.js";
+import { resolveSimplexChatItemId } from "../simplex/runtime/api.js";
+import { withSimplexClient } from "../simplex/runtime/transport.js";
 import type { SimplexActionParams, ToolResult } from "../types/actions.js";
 import type { ResolvedSimplexAccount } from "../types/config.js";
 import type {
-  SimplexApiComposedMessage,
-  SimplexApiDeleteMode,
-  SimplexApiMsgContent,
-  SimplexApiReaction,
   SimplexComposedMessage,
+  SimplexDeleteMode,
+  SimplexReaction,
 } from "../types/simplex.js";
 import { assertSimplexReactActionAllowed } from "./discovery.js";
 import {
@@ -55,17 +48,13 @@ async function sendActionComposedMessages(params: {
   if (params.composedMessages.length === 0) {
     return {};
   }
-  const apiChatRef = parseSimplexApiChatRef(params.chatRef);
-  if (!apiChatRef) {
-    throw new Error(`SimpleX chat ref must be numeric for runtime API: ${params.chatRef}`);
-  }
-  const chatItems = await withSimplexApi({
+  const chatItems = await withSimplexClient({
     account: params.account,
-    run: (api) =>
-      api.apiSendMessages(
-        toSimplexApiChatRef(apiChatRef),
-        params.composedMessages as SimplexApiComposedMessage[]
-      ),
+    run: (client) =>
+      client.sendMessages({
+        chatRef: params.chatRef,
+        composedMessages: params.composedMessages,
+      }),
   });
   return { messageId: resolveSimplexChatItemId(chatItems[0]) };
 }
@@ -131,24 +120,19 @@ export async function executeSimplexMessageAction(params: {
     if (!reaction) {
       throw new Error("reaction or emoji required");
     }
-    const apiChatRef = parseSimplexApiChatRef(chatRef);
-    if (!apiChatRef) {
-      throw new Error(`SimpleX chat ref must be numeric for runtime API: ${chatRef}`);
-    }
-    const apiReaction =
+    const runtimeReaction =
       emoji && !("type" in reaction)
-        ? ({ type: "emoji", emoji } as unknown as SimplexApiReaction)
-        : (reaction as unknown as SimplexApiReaction);
-    await withSimplexApi({
+        ? ({ type: "emoji", emoji } as SimplexReaction)
+        : (reaction as SimplexReaction);
+    await withSimplexClient({
       account,
-      run: (api) =>
-        api.apiChatItemReaction(
-          toSimplexApiChatType(apiChatRef),
-          apiChatRef[1],
+      run: (client) =>
+        client.reactToMessage({
+          chatRef,
           messageId,
-          !remove,
-          apiReaction
-        ),
+          add: !remove,
+          reaction: runtimeReaction,
+        }),
     });
     return jsonResult({ ok: true, action: remove ? "removed" : "added", emoji });
   }
@@ -167,20 +151,14 @@ export async function executeSimplexMessageAction(params: {
       throw new Error("text required");
     }
     const updatedMessage = await resolveEditMessage({ cfg, account, text });
-    const apiChatRef = parseSimplexApiChatRef(chatRef);
-    if (!apiChatRef) {
-      throw new Error(`SimpleX chat ref must be numeric for runtime API: ${chatRef}`);
-    }
-    await withSimplexApi({
+    await withSimplexClient({
       account,
-      run: (api) =>
-        api.apiUpdateChatItem(
-          toSimplexApiChatType(apiChatRef),
-          apiChatRef[1],
+      run: (client) =>
+        client.editMessage({
+          chatRef,
           messageId,
-          updatedMessage.msgContent as SimplexApiMsgContent,
-          false
-        ),
+          updatedMessage,
+        }),
     });
     return jsonResult({ ok: true, updated: messageId });
   }
@@ -188,19 +166,14 @@ export async function executeSimplexMessageAction(params: {
   if (action === "delete" || action === "unsend") {
     const messageIds = readMessageIds(toolParams);
     const deleteMode = readDeleteMode(toolParams);
-    const apiChatRef = parseSimplexApiChatRef(chatRef);
-    if (!apiChatRef) {
-      throw new Error(`SimpleX chat ref must be numeric for runtime API: ${chatRef}`);
-    }
-    await withSimplexApi({
+    await withSimplexClient({
       account,
-      run: (api) =>
-        api.apiDeleteChatItems(
-          toSimplexApiChatType(apiChatRef),
-          apiChatRef[1],
-          messageIds.map((id) => Math.trunc(Number(id))),
-          (deleteMode ?? "broadcast") as SimplexApiDeleteMode
-        ),
+      run: (client) =>
+        client.deleteMessages({
+          chatRef,
+          messageIds,
+          deleteMode: (deleteMode ?? "broadcast") as SimplexDeleteMode,
+        }),
     });
     return jsonResult({ ok: true, deleted: messageIds });
   }

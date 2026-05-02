@@ -72,7 +72,7 @@ describe("simplex allowlist", () => {
           accounts: {
             beta: {
               allowFrom: ["beta-only"],
-              dbFilePrefix: "/tmp/openclaw-simplex-test",
+              connection: { wsUrl: "ws://127.0.0.1:5225" },
             },
           },
         },
@@ -104,8 +104,10 @@ describe("simplex allowlist", () => {
       accountId: "alpha",
       enabled: true,
       configured: true,
-      mode: "node",
-      dbFilePrefix: "~/.openclaw/simplex/openclaw-simplex-alpha",
+      mode: "external",
+      wsUrl: "ws://127.0.0.1:5225",
+      wsHost: "127.0.0.1",
+      wsPort: 5225,
       config: { markdown: {}, dmPolicy: "open" },
     };
     const result = resolveSimplexDmPolicy({

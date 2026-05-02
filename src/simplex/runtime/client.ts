@@ -1,198 +1,296 @@
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import type {
-  SimplexChatApi,
-  SimplexChatEvent,
+  SimplexComposedMessage,
+  SimplexDeleteMode,
+  SimplexGroupMemberRole,
+  SimplexGroupProfile,
   SimplexLogger,
-  SimplexMigrationConfirmation,
-  SimplexMigrationConfirmationSetting,
+  SimplexReaction,
+  SimplexRuntimeEvent,
+  SimplexRuntimeResponse,
 } from "../../types/simplex.js";
-import { resolveSimplexDbFilePrefix } from "./db-path.js";
-
-type SimplexConnectionState = {
-  connected: boolean;
-  at: number;
-  expected?: boolean;
-  error?: string | null;
-};
+import {
+  buildAcceptContactRequestCommand,
+  buildAddGroupMemberCommand,
+  buildCancelFileCommand,
+  buildConnectCommand,
+  buildConnectPlanCommand,
+  buildCreateGroupCommand,
+  buildCreateGroupLinkCommand,
+  buildDeleteChatItemCommand,
+  buildDeleteGroupLinkCommand,
+  buildLeaveGroupCommand,
+  buildListContactsCommand,
+  buildListGroupMembersCommand,
+  buildListGroupsCommand,
+  buildListUsersCommand,
+  buildReactionCommand,
+  buildReceiveFileCommand,
+  buildRejectContactRequestCommand,
+  buildRemoveGroupMemberCommand,
+  buildSendMessagesCommand,
+  buildShowActiveUserCommand,
+  buildShowGroupLinkCommand,
+  buildUpdateChatItemCommand,
+  buildUpdateGroupProfileCommand,
+  INVITE_COMMANDS,
+} from "./commands.js";
+import { resolveSimplexCommandError } from "./errors.js";
+import { extractSimplexLink } from "./links.js";
+import { assertSimplexWsEndpointAllowed } from "./security.js";
+import { type SimplexConnectionState, SimplexWsClient } from "./ws-client.js";
 
 type SimplexClientParams = {
   account: ResolvedSimplexAccount;
   logger?: SimplexLogger;
 };
 
+type CommandResponsePayload = {
+  type?: string;
+  [key: string]: unknown;
+};
+
+function unwrapResponse(response: SimplexRuntimeResponse): CommandResponsePayload {
+  const resp = response.resp as CommandResponsePayload | undefined;
+  const commandError = resolveSimplexCommandError(resp);
+  if (commandError) {
+    throw new Error(commandError);
+  }
+  return resp ?? response;
+}
+
+function firstArrayField(payload: CommandResponsePayload, fields: string[]): unknown[] {
+  for (const field of fields) {
+    const value = payload[field];
+    if (Array.isArray(value)) {
+      return value;
+    }
+  }
+  return [];
+}
+
+function firstObjectField(payload: CommandResponsePayload, fields: string[]): unknown {
+  for (const field of fields) {
+    const value = payload[field];
+    if (value !== undefined) {
+      return value;
+    }
+  }
+  return payload;
+}
+
 export class SimplexClient {
-  private readonly account: ResolvedSimplexAccount;
-  private readonly logger: SimplexClientParams["logger"];
-  private chat: SimplexChatApi | null = null;
-  private connectPromise: Promise<void> | null = null;
-  private eventReceiver: ((event: SimplexChatEvent) => void) | null = null;
-  private readonly eventHandlers = new Set<(event: SimplexChatEvent) => void>();
-  private readonly connectionHandlers = new Set<(state: SimplexConnectionState) => void>();
-  private lastConnectionState: SimplexConnectionState = {
-    connected: false,
-    at: Date.now(),
-    expected: true,
-    error: null,
-  };
-  private closing = false;
+  private readonly ws: SimplexWsClient;
 
   constructor(params: SimplexClientParams) {
-    this.account = params.account;
-    this.logger = params.logger;
+    assertSimplexWsEndpointAllowed({
+      wsUrl: params.account.wsUrl,
+      allowUnsafeRemoteWs: params.account.config.connection?.allowUnsafeRemoteWs,
+    });
+    this.ws = new SimplexWsClient({
+      url: params.account.wsUrl,
+      connectTimeoutMs: params.account.config.connection?.connectTimeoutMs,
+      logger: params.logger,
+    });
   }
 
-  onEvent(handler: (event: SimplexChatEvent) => void): () => void {
-    this.eventHandlers.add(handler);
-    return () => {
-      this.eventHandlers.delete(handler);
-    };
+  onEvent(handler: (event: SimplexRuntimeEvent) => void): () => void {
+    return this.ws.onEvent(handler);
   }
 
   onConnectionState(handler: (state: SimplexConnectionState) => void): () => void {
-    this.connectionHandlers.add(handler);
-    return () => {
-      this.connectionHandlers.delete(handler);
-    };
+    return this.ws.onConnectionState(handler);
   }
 
   getConnectionState(): SimplexConnectionState {
-    return { ...this.lastConnectionState };
+    return this.ws.getConnectionState();
   }
 
   async connect(): Promise<void> {
-    if (this.chat?.started) {
-      return;
-    }
-    if (this.connectPromise) {
-      await this.connectPromise;
-      return;
-    }
-    const inFlight = withTimeout(
-      this.connectInternal(),
-      this.account.config.connectTimeoutMs ?? 15_000,
-      `SimpleX Node runtime connect timed out for account "${this.account.accountId}"`
-    ).finally(() => {
-      if (this.connectPromise === inFlight) {
-        this.connectPromise = null;
-      }
-    });
-    this.connectPromise = inFlight;
-    await inFlight;
+    await this.ws.connect();
   }
 
   async close(): Promise<void> {
-    this.closing = true;
-    const chat = this.chat;
-    if (chat && this.eventReceiver) {
-      chat.offAny(this.eventReceiver as never);
-    }
-    this.eventReceiver = null;
-    this.chat = null;
-    if (chat) {
-      await chat.stopChat().catch(() => undefined);
-      await chat.close().catch(() => undefined);
-    }
-    this.emitConnectionState({ connected: false, expected: true, at: Date.now(), error: null });
-    this.closing = false;
+    await this.ws.close();
   }
 
-  async withApi<T>(fn: (api: SimplexChatApi) => Promise<T>): Promise<T> {
-    await this.connect();
-    if (!this.chat) {
-      throw new Error("SimpleX Node runtime is not connected");
-    }
-    return await fn(this.chat);
+  async runCommand(command: string): Promise<CommandResponsePayload> {
+    return unwrapResponse(await this.ws.sendCommand(command));
   }
 
-  private async connectInternal(): Promise<void> {
-    const simplex = await import("simplex-chat");
-    const confirm = resolveMigrationConfirmation(simplex.core.MigrationConfirmation, {
-      value: this.account.config.migrationConfirmation,
-    });
-    if (!this.account.dbFilePrefix) {
-      throw new Error(
-        `SimpleX account "${this.account.accountId}" is missing dbFilePrefix; the official SimpleX Node API requires an explicit database file prefix`
-      );
-    }
-    const chat = await simplex.api.ChatApi.init(
-      { type: "sqlite", filePrefix: resolveSimplexDbFilePrefix(this.account.dbFilePrefix) },
-      confirm
+  async sendMessages(params: {
+    chatRef: string;
+    composedMessages: SimplexComposedMessage[];
+  }): Promise<unknown[]> {
+    const payload = await this.runCommand(buildSendMessagesCommand(params));
+    return firstArrayField(payload, ["chatItems", "items"]);
+  }
+
+  async reactToMessage(params: {
+    chatRef: string;
+    messageId: number;
+    add: boolean;
+    reaction: SimplexReaction;
+  }): Promise<unknown> {
+    return await this.runCommand(
+      buildReactionCommand({
+        chatRef: params.chatRef,
+        chatItemId: params.messageId,
+        add: params.add,
+        reaction: params.reaction,
+      })
     );
-    this.chat = chat;
-    this.eventReceiver = (event) => {
-      this.emitEvent(event as SimplexChatEvent);
-    };
-    chat.onAny(this.eventReceiver as never);
-    await ensureActiveUser({
-      chat,
-      displayName: this.account.config.displayName ?? this.account.name ?? "OpenClaw SimpleX",
-      fullName: this.account.config.fullName ?? "",
-    });
-    await chat.startChat();
-    this.logger?.info?.("SimpleX Node runtime started");
-    this.emitConnectionState({ connected: true, at: Date.now(), error: null });
   }
 
-  private emitEvent(event: SimplexChatEvent): void {
-    for (const handler of [...this.eventHandlers]) {
-      handler(event);
-    }
+  async editMessage(params: {
+    chatRef: string;
+    messageId: number;
+    updatedMessage: SimplexComposedMessage;
+  }): Promise<unknown> {
+    return await this.runCommand(
+      buildUpdateChatItemCommand({
+        chatRef: params.chatRef,
+        chatItemId: params.messageId,
+        updatedMessage: params.updatedMessage,
+      })
+    );
   }
 
-  private emitConnectionState(state: SimplexConnectionState): void {
-    if (!state.connected && this.closing) {
-      state.expected = true;
-    }
-    this.lastConnectionState = { ...state };
-    for (const handler of [...this.connectionHandlers]) {
-      handler(state);
-    }
+  async deleteMessages(params: {
+    chatRef: string;
+    messageIds: Array<number | string>;
+    deleteMode?: SimplexDeleteMode;
+  }): Promise<unknown> {
+    return await this.runCommand(
+      buildDeleteChatItemCommand({
+        chatRef: params.chatRef,
+        chatItemIds: params.messageIds,
+        deleteMode: params.deleteMode,
+      })
+    );
   }
-}
 
-function resolveMigrationConfirmation(
-  migrationConfirmation: SimplexMigrationConfirmation,
-  params: { value?: SimplexMigrationConfirmationSetting }
-) {
-  switch (params.value) {
-    case "yesUpDown":
-      return migrationConfirmation.YesUpDown;
-    case "console":
-      return migrationConfirmation.Console;
-    case "error":
-      return migrationConfirmation.Error;
-    default:
-      return migrationConfirmation.YesUp;
+  async receiveFile(fileId: number): Promise<unknown> {
+    return await this.runCommand(buildReceiveFileCommand({ fileId }));
   }
-}
 
-async function ensureActiveUser(params: {
-  chat: SimplexChatApi;
-  displayName: string;
-  fullName: string;
-}): Promise<void> {
-  const existing = await params.chat.apiGetActiveUser();
-  if (existing) {
-    return;
+  async cancelFile(fileId: number): Promise<unknown> {
+    return await this.runCommand(buildCancelFileCommand(fileId));
   }
-  await params.chat.apiCreateActiveUser({
-    displayName: params.displayName,
-    fullName: params.fullName,
-  });
-}
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
+  async createInviteLink(): Promise<{ link: string | null; response: unknown }> {
+    const response = await this.runCommand(INVITE_COMMANDS.connect);
+    return { link: extractSimplexLink(response), response };
+  }
+
+  async createAddress(): Promise<{ link: string | null; response: unknown }> {
+    const response = await this.runCommand(INVITE_COMMANDS.address);
+    return { link: extractSimplexLink(response), response };
+  }
+
+  async getAddress(): Promise<{ link: string | null; response: unknown }> {
+    const response = await this.runCommand("/show_address");
+    return { link: extractSimplexLink(response), response };
+  }
+
+  async deleteAddress(): Promise<unknown> {
+    return await this.runCommand("/delete_address");
+  }
+
+  async getActiveUser(): Promise<unknown> {
+    const payload = await this.runCommand(buildShowActiveUserCommand());
+    return firstObjectField(payload, ["user", "activeUser"]);
+  }
+
+  async listUsers(): Promise<unknown[]> {
+    const payload = await this.runCommand(buildListUsersCommand());
+    return firstArrayField(payload, ["users"]);
+  }
+
+  async listContacts(userId: number | string): Promise<unknown[]> {
+    const payload = await this.runCommand(buildListContactsCommand(userId));
+    return firstArrayField(payload, ["contacts"]);
+  }
+
+  async listGroups(params: {
+    userId: number | string;
+    contactId?: number | string | null;
+    search?: string | null;
+  }): Promise<unknown[]> {
+    const payload = await this.runCommand(buildListGroupsCommand(params));
+    return firstArrayField(payload, ["groups"]);
+  }
+
+  async listGroupMembers(params: {
+    groupId: number | string;
+    search?: string | null;
+  }): Promise<unknown[]> {
+    const payload = await this.runCommand(buildListGroupMembersCommand(params));
+    return firstArrayField(payload, ["members", "groupMembers"]);
+  }
+
+  async createGroup(profile: SimplexGroupProfile): Promise<unknown> {
+    const payload = await this.runCommand(buildCreateGroupCommand(profile));
+    return firstObjectField(payload, ["group", "groupInfo"]);
+  }
+
+  async updateGroupProfile(params: {
+    groupId: number | string;
+    profile: Partial<SimplexGroupProfile>;
+  }): Promise<unknown> {
+    return await this.runCommand(buildUpdateGroupProfileCommand(params));
+  }
+
+  async addGroupMember(params: {
+    groupId: number | string;
+    contactId: number | string;
+  }): Promise<unknown> {
+    return await this.runCommand(buildAddGroupMemberCommand(params));
+  }
+
+  async removeGroupMember(params: {
+    groupId: number | string;
+    memberId: number | string;
+  }): Promise<unknown> {
+    return await this.runCommand(buildRemoveGroupMemberCommand(params));
+  }
+
+  async leaveGroup(groupId: number | string): Promise<unknown> {
+    return await this.runCommand(buildLeaveGroupCommand(groupId));
+  }
+
+  async createGroupLink(params: {
+    groupId: number | string;
+    role: SimplexGroupMemberRole;
+  }): Promise<{ link: string | null; response: unknown }> {
+    const response = await this.runCommand(buildCreateGroupLinkCommand(params));
+    return { link: extractSimplexLink(response), response };
+  }
+
+  async getGroupLink(
+    groupId: number | string
+  ): Promise<{ link: string | null; response: unknown }> {
+    const response = await this.runCommand(buildShowGroupLinkCommand(groupId));
+    return { link: extractSimplexLink(response), response };
+  }
+
+  async deleteGroupLink(groupId: number | string): Promise<unknown> {
+    return await this.runCommand(buildDeleteGroupLinkCommand(groupId));
+  }
+
+  async acceptContactRequest(contactRequestId: number): Promise<unknown> {
+    return await this.runCommand(buildAcceptContactRequestCommand(contactRequestId));
+  }
+
+  async rejectContactRequest(contactRequestId: number): Promise<unknown> {
+    return await this.runCommand(buildRejectContactRequestCommand(contactRequestId));
+  }
+
+  async planConnect(link: string): Promise<unknown> {
+    return await this.runCommand(buildConnectPlanCommand(link));
+  }
+
+  async connectLink(link: string): Promise<unknown> {
+    return await this.runCommand(buildConnectCommand(link));
   }
 }

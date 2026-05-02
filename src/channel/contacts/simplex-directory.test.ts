@@ -1,7 +1,6 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { SimplexChatApi } from "../../types/simplex.js";
 
 const simplexApiMock = vi.hoisted(() => ({
   contacts: [] as unknown[],
@@ -15,17 +14,17 @@ const simplexApiMock = vi.hoisted(() => ({
 }));
 
 vi.mock("../../simplex/runtime/transport.js", () => ({
-  withSimplexApi: async <T>(params: { run: (api: SimplexChatApi) => Promise<T> }): Promise<T> => {
-    const api = {
-      apiGetActiveUser: vi.fn(async () => ({
+  withSimplexClient: async <T>(params: { run: (client: unknown) => Promise<T> }): Promise<T> => {
+    const client = {
+      getActiveUser: vi.fn(async () => ({
         userId: 1,
         profile: { displayName: "OpenClaw SimpleX" },
       })),
-      apiListContacts: vi.fn(async () => simplexApiMock.contacts),
-      apiListGroups: vi.fn(async () => simplexApiMock.groups),
-      apiListMembers: vi.fn(async () => simplexApiMock.members),
-    } as unknown as SimplexChatApi;
-    return await params.run(api);
+      listContacts: vi.fn(async () => simplexApiMock.contacts),
+      listGroups: vi.fn(async () => simplexApiMock.groups),
+      listGroupMembers: vi.fn(async () => simplexApiMock.members),
+    };
+    return await params.run(client);
   },
 }));
 
@@ -38,7 +37,9 @@ import {
 const cfg = {
   channels: {
     "openclaw-simplex": {
-      dbFilePrefix: "/tmp/openclaw-simplex-directory-test",
+      connection: {
+        wsUrl: "ws://127.0.0.1:5225",
+      },
     },
   },
 } as OpenClawConfig;

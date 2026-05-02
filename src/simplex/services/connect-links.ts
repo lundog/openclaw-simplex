@@ -11,11 +11,11 @@ export async function planSimplexConnectionLink(params: {
     throw new Error("link is required");
   }
   const account = resolveRuntimeAccount(params.cfg, params.accountId);
-  const [plan, preparedLink] = await withActiveSimplexUser({
+  const plan = await withActiveSimplexUser({
     account,
-    run: (userId, api) => api.apiConnectPlan(userId, link),
+    run: (_userId, client) => client.planConnect(link),
   });
-  return { accountId: account.accountId, plan, preparedLink };
+  return { accountId: account.accountId, plan, preparedLink: null };
 }
 
 export async function connectSimplexLink(params: {
@@ -30,7 +30,7 @@ export async function connectSimplexLink(params: {
   const account = resolveRuntimeAccount(params.cfg, params.accountId);
   const result = await withActiveSimplexUser({
     account,
-    run: (_userId, api) => api.apiConnectActiveUser(link),
+    run: (_userId, client) => client.connectLink(link),
   });
   return { accountId: account.accountId, connected: true, result };
 }

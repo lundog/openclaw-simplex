@@ -34,47 +34,63 @@ function extractMockLink(value: unknown): string | null {
   return extractMockLink(record.output) ?? extractMockLink(record.message);
 }
 
-function mockContactLink(link: string | null): MockResponse {
-  return {
-    connShortLink: link ?? "simplex://address-mock",
-  };
-}
-
 vi.mock("./src/simplex/runtime/client.js", () => ({
   SimplexClient: class {
     async connect() {}
     getConnectionState() {
       return { connected: true, at: 1, error: null };
     }
-    async withApi<T>(fn: (api: Record<string, unknown>) => Promise<T>) {
-      const api = {
-        apiGetActiveUser: vi.fn(async () => ({ userId: 1 })),
-        apiListUsers: vi.fn(async () => [{ user: { userId: 1 } }]),
-        apiCreateLink: vi.fn(
-          async () => extractMockLink(nextMockPayload()) ?? "simplex://invite-mock"
-        ),
-        apiGetUserAddress: vi.fn(async () => mockContactLink(extractMockLink(nextMockPayload()))),
-        apiCreateUserAddress: vi.fn(async () =>
-          mockContactLink(extractMockLink(nextMockPayload()))
-        ),
-        apiDeleteUserAddress: vi.fn(async () => undefined),
-        apiListContacts: vi.fn(async () => [nextMockPayload()]),
-        apiListGroups: vi.fn(async () => [{ groupId: 10 }]),
-        apiNewGroup: vi.fn(async () => ({ groupId: 11, groupProfile: { displayName: "Ops" } })),
-        apiCreateGroupLink: vi.fn(async () => "simplex://group-link"),
-        apiGetGroupLinkStr: vi.fn(async () => "simplex://group-link"),
-        apiGetGroupLink: vi.fn(async () => ({ groupLinkId: "group-link" })),
-        apiDeleteGroupLink: vi.fn(async () => undefined),
-        apiConnectPlan: vi.fn(async () => [{ type: "ok" }, { connShortLink: "simplex://x" }]),
-        apiConnectActiveUser: vi.fn(async () => ({ type: "sentConfirmation" })),
-        apiAcceptContactRequest: vi.fn(async () => ({ contactId: 100 })),
-        apiRejectContactRequest: vi.fn(async () => undefined),
-        apiSendMessages: vi.fn(async () => [{ chatItem: { meta: { itemId: 1 } } }]),
-        apiReceiveFile: vi.fn(async () => ({ chatItem: { meta: { itemId: 1 } } })),
-        apiCancelFile: vi.fn(async () => undefined),
-      };
-      return await fn(api);
+    async getActiveUser() {
+      return { userId: 1 };
     }
+    async listUsers() {
+      return [{ user: { userId: 1 } }];
+    }
+    async createInviteLink() {
+      return { link: extractMockLink(nextMockPayload()) ?? "simplex://invite-mock", response: {} };
+    }
+    async getAddress() {
+      const payload = nextMockPayload();
+      return { link: extractMockLink(payload), response: payload };
+    }
+    async createAddress() {
+      const payload = nextMockPayload();
+      return { link: extractMockLink(payload) ?? "simplex://address-mock", response: payload };
+    }
+    async deleteAddress() {}
+    async listContacts() {
+      return [nextMockPayload()];
+    }
+    async listGroups() {
+      return [{ groupId: 10 }];
+    }
+    async createGroup() {
+      return { groupId: 11, groupProfile: { displayName: "Ops" } };
+    }
+    async createGroupLink() {
+      return { link: "simplex://group-link", response: {} };
+    }
+    async getGroupLink() {
+      return { link: "simplex://group-link", response: { groupLinkId: "group-link" } };
+    }
+    async deleteGroupLink() {}
+    async planConnect() {
+      return { type: "ok", link: "simplex://x" };
+    }
+    async connectLink() {
+      return { type: "sentConfirmation" };
+    }
+    async acceptContactRequest() {
+      return { contactId: 100 };
+    }
+    async rejectContactRequest() {}
+    async sendMessages() {
+      return [{ chatItem: { meta: { itemId: 1 } } }];
+    }
+    async receiveFile() {
+      return { chatItem: { meta: { itemId: 1 } } };
+    }
+    async cancelFile() {}
     async close() {}
   },
 }));
@@ -88,7 +104,9 @@ import { simplexPlugin } from "./src/channel/plugin.js";
 const simplexConfiguredChannel = {
   channels: {
     "openclaw-simplex": {
-      dbFilePrefix: "/tmp/openclaw-simplex-test",
+      connection: {
+        wsUrl: "ws://127.0.0.1:5225",
+      },
     },
   },
 };
@@ -391,11 +409,11 @@ describe("simplex channel config and allowlist adapters", () => {
     const cfg = {
       channels: {
         "openclaw-simplex": {
-          dbFilePrefix: "/tmp/openclaw-simplex-test",
+          connection: { wsUrl: "ws://127.0.0.1:5225" },
           allowFrom: ["@base"],
           accounts: {
             ops: {
-              dbFilePrefix: "~/.openclaw/simplex/openclaw-simplex-ops",
+              connection: { wsUrl: "ws://127.0.0.1:5225" },
               allowFrom: ["@ops"],
             },
           },
@@ -427,7 +445,7 @@ describe("simplex channel config and allowlist adapters", () => {
       cfg,
       accountId: "default",
     });
-    expect(deletedDefault?.channels?.["openclaw-simplex"]?.dbFilePrefix).toBeUndefined();
+    expect(deletedDefault?.channels?.["openclaw-simplex"]?.connection).toBeUndefined();
     expect(deletedDefault?.channels?.["openclaw-simplex"]?.allowFrom).toBeUndefined();
     expect(deletedDefault?.channels?.["openclaw-simplex"]?.accounts?.ops).toBeDefined();
   });
@@ -661,12 +679,14 @@ describe("simplex invite gateway", () => {
     expect(payload).toMatchObject({
       accountId: "default",
       addressLink: "simplex://address789",
-      links: ["simplex://address789"],
+      links: ["simplex://address789", "simplex://invite999"],
     });
     expect((payload as { addressQrDataUrl?: string }).addressQrDataUrl).toMatch(
       /^data:image\/png;base64,/
     );
-    expect((payload as { pendingHints?: string[] }).pendingHints).toEqual([]);
+    expect((payload as { pendingHints?: string[] }).pendingHints).toEqual([
+      "Pending contact request from Bob simplex://invite999",
+    ]);
     expect(getCommands()).toEqual([]);
   });
 
@@ -676,7 +696,7 @@ describe("simplex invite gateway", () => {
         "openclaw-simplex": {
           accounts: {
             ops: {
-              dbFilePrefix: "~/.openclaw/simplex/openclaw-simplex-ops",
+              connection: { wsUrl: "ws://127.0.0.1:5225" },
             },
           },
         },
@@ -712,7 +732,7 @@ describe("simplex invite gateway", () => {
         "openclaw-simplex": {
           accounts: {
             ops: {
-              dbFilePrefix: "~/.openclaw/simplex/openclaw-simplex-ops",
+              connection: { wsUrl: "ws://127.0.0.1:5225" },
             },
           },
         },
@@ -752,7 +772,7 @@ describe("simplex invite gateway", () => {
     expect(ok).toBe(true);
     expect(payload).toMatchObject({
       accountId: "default",
-      mode: "node",
+      mode: "external",
       counts: {
         contacts: 1,
         groups: 1,

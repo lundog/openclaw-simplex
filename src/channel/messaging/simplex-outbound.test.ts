@@ -76,7 +76,7 @@ describe("simplex outbound presentation support", () => {
       cfg: {
         channels: {
           "openclaw-simplex": {
-            dbFilePrefix: "/tmp/openclaw-simplex-test",
+            connection: { wsUrl: "ws://127.0.0.1:5225" },
           },
         },
       },

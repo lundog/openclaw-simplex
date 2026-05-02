@@ -37,17 +37,22 @@ export const simplexSetupAdapter: ChannelSetupAdapter = {
       accountId,
       patch: {
         enabled: true,
+        connection: {
+          mode: "external",
+          wsHost: "127.0.0.1",
+          wsPort: 5225,
+        },
       },
     });
   },
   validateInput: ({ input }) => {
     const cliPath = input.cliPath?.trim();
     if (cliPath) {
-      return "SimpleX CLI path is no longer needed. This plugin uses the official Node runtime.";
+      return "SimpleX CLI path is not configured in OpenClaw. Start simplex-chat separately with its WebSocket API enabled.";
     }
     const runtimeUrl = input.url?.trim() || input.httpUrl?.trim();
-    if (runtimeUrl) {
-      return "SimpleX runtime URLs are no longer supported. This plugin uses the official Node runtime.";
+    if (runtimeUrl && !runtimeUrl.startsWith("ws://") && !runtimeUrl.startsWith("wss://")) {
+      return "SimpleX runtime URL must be a ws:// or wss:// WebSocket URL.";
     }
     return null;
   },

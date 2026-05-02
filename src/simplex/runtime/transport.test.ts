@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
-import type { SimplexChatApi } from "../../types/simplex.js";
 
 const clientMock = vi.hoisted(() => ({
   constructed: 0,
@@ -11,14 +10,12 @@ const clientMock = vi.hoisted(() => ({
 
 vi.mock("./client.js", () => ({
   SimplexClient: class {
+    source = "constructed";
     constructor() {
       clientMock.constructed += 1;
     }
     async connect() {}
     async close() {}
-    async withApi<T>(fn: (api: SimplexChatApi) => Promise<T>) {
-      return await fn({ source: "constructed" } as unknown as SimplexChatApi);
-    }
   },
 }));
 
@@ -27,38 +24,36 @@ import {
   getActiveSimplexClient,
   registerActiveSimplexClient,
   unregisterActiveSimplexClient,
-  withSimplexApi,
+  withSimplexClient,
 } from "./transport.js";
 
 const registeredAccounts: Array<{ account: ResolvedSimplexAccount; client: SimplexClient }> = [];
 
-function account(accountId = "default"): ResolvedSimplexAccount {
-  const dbFilePrefix = `/tmp/openclaw-simplex-${accountId}`;
-  return accountWithDb(accountId, dbFilePrefix);
-}
-
-function accountWithDb(accountId: string, dbFilePrefix: string): ResolvedSimplexAccount {
+function account(
+  accountId = "default",
+  wsUrl = `ws://127.0.0.1:5225/${accountId}`
+): ResolvedSimplexAccount {
   return {
     accountId,
     name: accountId,
     enabled: true,
     configured: true,
-    mode: "node",
-    dbFilePrefix,
+    mode: "external",
+    wsUrl,
+    wsHost: "127.0.0.1",
+    wsPort: 5225,
     config: {
-      dbFilePrefix,
+      connection: { wsUrl },
     },
   };
 }
 
 function activeClient(source: string): SimplexClient {
   return {
+    source,
     async connect() {},
     async close() {},
-    async withApi<T>(fn: (api: SimplexChatApi) => Promise<T>) {
-      return await fn({ source } as unknown as SimplexChatApi);
-    },
-  } as SimplexClient;
+  } as unknown as SimplexClient;
 }
 
 describe("simplex runtime transport", () => {
@@ -70,32 +65,32 @@ describe("simplex runtime transport", () => {
     clientMock.reset();
   });
 
-  it("prefers the active monitor client for shared API calls", async () => {
+  it("prefers the active monitor client for runtime calls", async () => {
     const cfg = account("alpha");
     const client = activeClient("active");
     registeredAccounts.push({ account: cfg, client });
     await registerActiveSimplexClient(cfg, client);
 
-    const result = await withSimplexApi({
+    const result = await withSimplexClient({
       account: cfg,
-      run: async (api) => (api as unknown as { source: string }).source,
+      run: async (runtimeClient) => (runtimeClient as unknown as { source: string }).source,
     });
 
     expect(result).toBe("active");
     expect(clientMock.constructed).toBe(0);
   });
 
-  it("reuses an active monitor client for another account with the same runtime database", async () => {
-    const dbFilePrefix = "/tmp/openclaw-simplex-shared";
-    const monitored = accountWithDb("alpha", dbFilePrefix);
-    const alias = accountWithDb("alias", dbFilePrefix);
+  it("reuses an active monitor client for another account with the same WebSocket URL", async () => {
+    const wsUrl = "ws://127.0.0.1:5225";
+    const monitored = account("alpha", wsUrl);
+    const alias = account("alias", wsUrl);
     const client = activeClient("active");
     registeredAccounts.push({ account: monitored, client });
     await registerActiveSimplexClient(monitored, client);
 
-    const result = await withSimplexApi({
+    const result = await withSimplexClient({
       account: alias,
-      run: async (api) => (api as unknown as { source: string }).source,
+      run: async (runtimeClient) => (runtimeClient as unknown as { source: string }).source,
     });
 
     expect(result).toBe("active");

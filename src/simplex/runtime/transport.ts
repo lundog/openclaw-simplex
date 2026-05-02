@@ -1,16 +1,16 @@
 import type { ResolvedSimplexAccount } from "../../types/config.js";
-import type { SimplexChatApi, SimplexLogger } from "../../types/simplex.js";
+import type { SimplexLogger } from "../../types/simplex.js";
 import { SimplexClient } from "./client.js";
 
-type SharedSimplexClientKey = `${string}|${string}|${number}`;
+type SharedSimplexClientKey = `${string}|${number}`;
 
 const activeSimplexClients = new Map<string, SimplexClient>();
 const activeSimplexClientsByKey = new Map<SharedSimplexClientKey, SimplexClient>();
 const sharedSimplexClients = new Map<SharedSimplexClientKey, SimplexClient>();
 
 function sharedClientKey(account: ResolvedSimplexAccount): SharedSimplexClientKey {
-  const timeoutMs = account.config.connectTimeoutMs ?? 15_000;
-  return `${account.mode}|${account.dbFilePrefix ?? "unconfigured"}|${timeoutMs}`;
+  const timeoutMs = account.config.connection?.connectTimeoutMs ?? 15_000;
+  return `${account.wsUrl}|${timeoutMs}`;
 }
 
 export async function registerActiveSimplexClient(
@@ -62,19 +62,20 @@ function getSharedSimplexClient(params: {
   return created;
 }
 
-export async function withSimplexApi<T>(params: {
+export async function withSimplexClient<T>(params: {
   account: ResolvedSimplexAccount;
   logger?: SimplexLogger;
-  run: (api: SimplexChatApi) => Promise<T>;
+  run: (client: SimplexClient) => Promise<T>;
 }): Promise<T> {
   const activeClient = activeSimplexClients.get(params.account.accountId);
   if (activeClient) {
-    return await activeClient.withApi(params.run);
+    return await params.run(activeClient);
   }
   const sharedActiveClient = activeSimplexClientsByKey.get(sharedClientKey(params.account));
   if (sharedActiveClient) {
-    return await sharedActiveClient.withApi(params.run);
+    return await params.run(sharedActiveClient);
   }
   const client = getSharedSimplexClient(params);
-  return await client.withApi(params.run);
+  await client.connect();
+  return await params.run(client);
 }

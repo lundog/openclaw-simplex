@@ -3,7 +3,7 @@ import type { ChannelDirectoryEntry } from "openclaw/plugin-sdk/directory-runtim
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { resolveSimplexAccount } from "../../config/accounts.js";
 import { parseSimplexNumericId } from "../../simplex/runtime/api.js";
-import { withSimplexApi } from "../../simplex/runtime/transport.js";
+import { withSimplexClient } from "../../simplex/runtime/transport.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import { stripSimplexPrefix } from "../shared/simplex-common.js";
 
@@ -159,10 +159,10 @@ async function fetchActiveUserInfo(
   runtime: RuntimeEnv
 ): Promise<ActiveUserInfo | null> {
   try {
-    return await withSimplexApi({
+    return await withSimplexClient({
       account,
-      run: async (api) => {
-        const user = (await api.apiGetActiveUser()) as Record<string, unknown> | undefined;
+      run: async (client) => {
+        const user = (await client.getActiveUser()) as Record<string, unknown> | undefined;
         if (!user || typeof user !== "object") {
           return null;
         }
@@ -194,10 +194,10 @@ async function listContactsLive(params: {
   if (userId === null) {
     return [];
   }
-  return await withSimplexApi({
+  return await withSimplexClient({
     account: params.account,
-    run: async (api) => {
-      const contacts = await api.apiListContacts(userId);
+    run: async (client) => {
+      const contacts = await client.listContacts(userId);
       const mapped = contacts.map(mapContactEntry).filter(Boolean) as ChannelDirectoryEntry[];
       const q = normalizeQuery(params.query);
       const filtered = q
@@ -227,10 +227,10 @@ async function listGroupsLive(params: {
   if (userId === null) {
     return [];
   }
-  return await withSimplexApi({
+  return await withSimplexClient({
     account: params.account,
-    run: async (api) => {
-      const groups = await api.apiListGroups(userId, undefined, params.query ?? undefined);
+    run: async (client) => {
+      const groups = await client.listGroups({ userId, search: params.query });
       const mapped = groups.map(mapGroupEntry).filter(Boolean) as ChannelDirectoryEntry[];
       const q = normalizeQuery(params.query);
       const filtered = q
@@ -255,10 +255,10 @@ async function listGroupMembersLive(params: {
   if (groupId === null) {
     return [];
   }
-  return await withSimplexApi({
+  return await withSimplexClient({
     account: params.account,
-    run: async (api) => {
-      const members = await api.apiListMembers(groupId);
+    run: async (client) => {
+      const members = await client.listGroupMembers({ groupId });
       const mapped = members.map(mapMemberEntry).filter(Boolean) as ChannelDirectoryEntry[];
       const limit = params.limit && params.limit > 0 ? params.limit : undefined;
       return limit ? mapped.slice(0, limit) : mapped;

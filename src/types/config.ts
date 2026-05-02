@@ -1,10 +1,11 @@
 import type { SimplexAccountConfig } from "../config/config-schema.js";
 
 export type SimplexConnectionConfig = {
-  dbFilePrefix?: string;
-  displayName?: string;
-  fullName?: string;
-  migrationConfirmation?: "yesUp" | "yesUpDown" | "console" | "error";
+  mode?: "external";
+  wsUrl?: string;
+  wsHost?: string;
+  wsPort?: number;
+  allowUnsafeRemoteWs?: boolean;
   autoAcceptFiles?: boolean;
   connectTimeoutMs?: number;
 };
@@ -14,7 +15,9 @@ export type ResolvedSimplexAccount = {
   enabled: boolean;
   name?: string;
   configured: boolean;
-  mode: "node";
-  dbFilePrefix?: string;
+  mode: "external";
+  wsUrl: string;
+  wsHost: string;
+  wsPort: number;
   config: SimplexAccountConfig;
 };

@@ -27,11 +27,12 @@ type SimplexMigrationStateApi = {
   };
 };
 
-const RUNTIME_CONFIG_KEYS = new Set([
-  "dbFilePrefix",
-  "displayName",
-  "fullName",
-  "migrationConfirmation",
+const CONNECTION_CONFIG_KEYS = new Set([
+  "mode",
+  "wsUrl",
+  "wsHost",
+  "wsPort",
+  "allowUnsafeRemoteWs",
   "autoAcceptFiles",
   "connectTimeoutMs",
 ]);
@@ -40,10 +41,14 @@ const LEGACY_RUNTIME_KEYS = new Set([
   "authToken",
   "cliPath",
   "command",
+  "dbFilePrefix",
+  "displayName",
+  "fullName",
   "headers",
   "host",
   "httpUrl",
   "managed",
+  "migrationConfirmation",
   "mode",
   "path",
   "port",
@@ -54,8 +59,6 @@ const LEGACY_RUNTIME_KEYS = new Set([
   "url",
   "wsUrl",
 ]);
-
-const LEGACY_DEFAULT_DB_PREFIX = "~/.openclaw/simplex/openclaw-simplex";
 
 function dedupeStrings(values: unknown[] | undefined): string[] | undefined {
   if (!Array.isArray(values)) {
@@ -99,39 +102,44 @@ function mergeObjects<T extends Record<string, unknown>>(
   return merged as T;
 }
 
-function defaultDbFilePrefixForAccount(accountId?: string): string {
-  return accountId ? `${LEGACY_DEFAULT_DB_PREFIX}-${accountId}` : LEGACY_DEFAULT_DB_PREFIX;
-}
-
 function migrateConnectionConfig(
   account: Record<string, unknown>,
   value: unknown,
   pathLabel: string,
-  result: MigrationResult,
-  accountId?: string
+  result: MigrationResult
 ): void {
   if (value === undefined) {
     return;
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    if (account.dbFilePrefix === undefined) {
-      account.dbFilePrefix = defaultDbFilePrefixForAccount(accountId);
-    }
-    delete account.connection;
     result.changed.push(
-      `config: replaced invalid ${pathLabel} with dbFilePrefix for the Node runtime`
+      `config: removed invalid ${pathLabel}; configure connection.wsUrl for the external WebSocket runtime`
     );
+    delete account.connection;
     return;
   }
 
   const connection = value as Record<string, unknown>;
+  const nextConnection: Record<string, unknown> = {};
   const moved: string[] = [];
   const removed: string[] = [];
 
   for (const [key, fieldValue] of Object.entries(connection)) {
-    if (RUNTIME_CONFIG_KEYS.has(key)) {
-      if (account[key] === undefined) {
-        account[key] = fieldValue;
+    if (CONNECTION_CONFIG_KEYS.has(key)) {
+      nextConnection[key] = fieldValue;
+    } else if (key === "url" || key === "httpUrl") {
+      if (nextConnection.wsUrl === undefined && typeof fieldValue === "string") {
+        nextConnection.wsUrl = fieldValue;
+        moved.push(key);
+      }
+    } else if (key === "host") {
+      if (nextConnection.wsHost === undefined) {
+        nextConnection.wsHost = fieldValue;
+        moved.push(key);
+      }
+    } else if (key === "port") {
+      if (nextConnection.wsPort === undefined) {
+        nextConnection.wsPort = fieldValue;
         moved.push(key);
       }
     } else {
@@ -139,12 +147,10 @@ function migrateConnectionConfig(
     }
   }
 
-  if (account.dbFilePrefix === undefined) {
-    account.dbFilePrefix = defaultDbFilePrefixForAccount(accountId);
-    moved.push("dbFilePrefix");
+  if (nextConnection.mode === undefined) {
+    nextConnection.mode = "external";
   }
-
-  delete account.connection;
+  account.connection = nextConnection;
 
   if (moved.length > 0) {
     result.changed.push(
@@ -165,20 +171,35 @@ function migrateConnectionConfig(
 function sanitizeSimplexAccountConfig(
   value: unknown,
   pathLabel: string,
-  result: MigrationResult,
-  accountId?: string
+  result: MigrationResult
 ): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return value as Record<string, unknown> | undefined;
   }
   const account = { ...(value as Record<string, unknown>) };
   const removed: string[] = [];
+  const connection = {
+    ...((account.connection as Record<string, unknown> | undefined) ?? {}),
+  };
 
   for (const key of Object.keys(account)) {
     if (LEGACY_RUNTIME_KEYS.has(key)) {
+      const fieldValue = account[key];
+      if (key === "wsUrl" || key === "url" || key === "httpUrl") {
+        connection.wsUrl ??= fieldValue;
+      } else if (key === "host") {
+        connection.wsHost ??= fieldValue;
+      } else if (key === "port") {
+        connection.wsPort ??= fieldValue;
+      } else if (key === "mode" && fieldValue === "external") {
+        connection.mode ??= "external";
+      }
       delete account[key];
       removed.push(key);
     }
+  }
+  if (Object.keys(connection).length > 0) {
+    account.connection = connection;
   }
   if (removed.length > 0) {
     result.changed.push(
@@ -187,13 +208,7 @@ function sanitizeSimplexAccountConfig(
   }
 
   if ("connection" in account) {
-    migrateConnectionConfig(
-      account,
-      account.connection,
-      `${pathLabel}.connection`,
-      result,
-      accountId
-    );
+    migrateConnectionConfig(account, account.connection, `${pathLabel}.connection`, result);
   }
 
   return account;
@@ -219,8 +234,7 @@ function sanitizeSimplexChannelConfig(channel: unknown, result: MigrationResult)
       sanitizedAccounts[accountId] = sanitizeSimplexAccountConfig(
         account,
         `channels.${CHANNEL_ID}.accounts.${accountId}`,
-        result,
-        accountId
+        result
       );
     }
     next.accounts = sanitizedAccounts;

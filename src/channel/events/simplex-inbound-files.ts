@@ -41,12 +41,12 @@ export async function requestFileDownload(params: {
   runtime: RuntimeEnv;
 }): Promise<boolean> {
   const { fileId, account, client, runtime } = params;
-  const autoAccept = account.config.autoAcceptFiles !== false;
+  const autoAccept = account.config.connection?.autoAcceptFiles !== false;
   if (!autoAccept) {
     return false;
   }
   try {
-    await client.withApi((api) => api.apiReceiveFile(fileId));
+    await client.receiveFile(fileId);
   } catch (err) {
     runtime.error?.(`[${account.accountId}] SimpleX receive file failed: ${String(err)}`);
     return false;
@@ -68,13 +68,9 @@ export function queuePendingFile(params: {
       return;
     }
     pendingFiles.delete(key);
-    void current.client
-      .withApi((api) => api.apiCancelFile(fileId))
-      .catch((err) => {
-        current.runtime.error?.(
-          `[${accountId}] SimpleX file timeout cancel failed: ${String(err)}`
-        );
-      });
+    void current.client.cancelFile(fileId).catch((err) => {
+      current.runtime.error?.(`[${accountId}] SimpleX file timeout cancel failed: ${String(err)}`);
+    });
     void dispatchInbound({
       pending: current,
       mediaPath: undefined,

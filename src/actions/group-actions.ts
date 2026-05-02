@@ -1,9 +1,9 @@
 import type { ChannelMessageActionName } from "openclaw/plugin-sdk/channel-contract";
 import { parseSimplexNumericId } from "../simplex/runtime/api.js";
-import { withSimplexApi } from "../simplex/runtime/transport.js";
+import { withSimplexClient } from "../simplex/runtime/transport.js";
 import type { SimplexActionParams, ToolResult } from "../types/actions.js";
 import type { ResolvedSimplexAccount } from "../types/config.js";
-import type { SimplexApiGroupMemberRole, SimplexApiGroupProfile } from "../types/simplex.js";
+import type { SimplexGroupProfile } from "../types/simplex.js";
 import { normalizeSimplexGroupRef, readGroupTarget, readStringParam } from "./params.js";
 import { jsonResult } from "./result.js";
 
@@ -29,10 +29,10 @@ export async function executeSimplexGroupAction(params: {
       if (groupId === null) {
         throw new Error(`SimpleX group id must be numeric for runtime API: ${target}`);
       }
-      await withSimplexApi({
+      await withSimplexClient({
         account,
-        run: (api) =>
-          api.apiUpdateGroupProfile(groupId, profile as unknown as SimplexApiGroupProfile),
+        run: (client) =>
+          client.updateGroupProfile({ groupId, profile: profile as Partial<SimplexGroupProfile> }),
       });
       return jsonResult({ ok: true, group: target, profile });
     }
@@ -47,9 +47,9 @@ export async function executeSimplexGroupAction(params: {
     if (groupId === null) {
       throw new Error(`SimpleX group id must be numeric for runtime API: ${target}`);
     }
-    await withSimplexApi({
+    await withSimplexClient({
       account,
-      run: (api) => api.apiUpdateGroupProfile(groupId, { displayName } as SimplexApiGroupProfile),
+      run: (client) => client.updateGroupProfile({ groupId, profile: { displayName } }),
     });
     return jsonResult({ ok: true, group: target, displayName });
   }
@@ -68,9 +68,9 @@ export async function executeSimplexGroupAction(params: {
     if (groupId === null || contactId === null) {
       throw new Error("SimpleX group and contact ids must be numeric for runtime API");
     }
-    await withSimplexApi({
+    await withSimplexClient({
       account,
-      run: (api) => api.apiAddMember(groupId, contactId, "member" as SimplexApiGroupMemberRole),
+      run: (client) => client.addGroupMember({ groupId, contactId }),
     });
     return jsonResult({ ok: true, group: target, added: participant });
   }
@@ -89,9 +89,9 @@ export async function executeSimplexGroupAction(params: {
     if (groupId === null || memberId === null) {
       throw new Error("SimpleX group and member ids must be numeric for runtime API");
     }
-    await withSimplexApi({
+    await withSimplexClient({
       account,
-      run: (api) => api.apiRemoveMembers(groupId, [memberId]),
+      run: (client) => client.removeGroupMember({ groupId, memberId }),
     });
     return jsonResult({ ok: true, group: target, removed: participant });
   }
@@ -102,9 +102,9 @@ export async function executeSimplexGroupAction(params: {
     if (groupId === null) {
       throw new Error(`SimpleX group id must be numeric for runtime API: ${target}`);
     }
-    await withSimplexApi({
+    await withSimplexClient({
       account,
-      run: (api) => api.apiLeaveGroup(groupId),
+      run: (client) => client.leaveGroup(groupId),
     });
     return jsonResult({ ok: true, group: target, left: true });
   }

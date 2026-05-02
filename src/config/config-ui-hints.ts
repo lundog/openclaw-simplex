@@ -20,35 +20,42 @@ const accountScopedUiHints = withAccountScope({
     label: "Enabled",
     help: "Disable an account without deleting its SimpleX configuration.",
   },
-  dbFilePrefix: {
-    label: "SimpleX DB File Prefix",
-    help: "SQLite database file prefix for the SimpleX Node runtime. Defaults to the SimpleX terminal CLI prefix: ~/.simplex/simplex_v1 on Linux/macOS or %APPDATA%/simplex/simplex_v1 on Windows.",
-    placeholder: "~/.simplex/simplex_v1",
-    tags: ["runtime", "storage"],
+  connection: {
+    label: "WebSocket Runtime",
+    help: "Connection settings for the external simplex-chat WebSocket runtime.",
+    tags: ["transport"],
   },
-  displayName: {
-    label: "SimpleX Profile Name",
-    help: "Display name used when the Node runtime creates a SimpleX profile for this database.",
+  "connection.wsUrl": {
+    label: "WebSocket URL",
+    help: "WebSocket URL for the external simplex-chat runtime.",
+    placeholder: "ws://127.0.0.1:5225",
+    tags: ["transport"],
+  },
+  "connection.wsHost": {
+    label: "WebSocket Host",
+    help: "Host used to build the runtime WebSocket URL when wsUrl is omitted.",
+    placeholder: "127.0.0.1",
     advanced: true,
   },
-  fullName: {
-    label: "SimpleX Full Name",
-    help: "Full name used when the Node runtime creates a SimpleX profile for this database.",
+  "connection.wsPort": {
+    label: "WebSocket Port",
+    help: "Port used to build the runtime WebSocket URL when wsUrl is omitted.",
+    placeholder: "5225",
     advanced: true,
   },
-  migrationConfirmation: {
-    label: "DB Migration Mode",
-    help: "SimpleX database migration confirmation mode for the Node runtime.",
+  "connection.allowUnsafeRemoteWs": {
+    label: "Allow Unsafe Remote WS",
+    help: "Allow plaintext ws:// connections to non-loopback hosts only when protected by a private network, firewall, or TLS proxy.",
     advanced: true,
-    tags: ["runtime", "storage"],
+    tags: ["transport", "security"],
   },
-  autoAcceptFiles: {
+  "connection.autoAcceptFiles": {
     label: "Auto Accept Files",
     help: "Automatically accept incoming file transfers from the SimpleX runtime.",
     advanced: true,
     tags: ["media"],
   },
-  connectTimeoutMs: {
+  "connection.connectTimeoutMs": {
     label: "Connect Timeout (ms)",
     help: "Runtime connection/start timeout in milliseconds.",
     advanced: true,
@@ -153,7 +160,7 @@ const accountScopedUiHints = withAccountScope({
 export const simplexChannelConfigUiHints = {
   "": {
     label: "SimpleX",
-    help: "Connect OpenClaw to SimpleX through the official Node runtime. Reachability starts from SimpleX invite or address links, while OpenClaw still applies pairing, allowlists, and group policy.",
+    help: "Connect OpenClaw to SimpleX through an external simplex-chat WebSocket runtime. Reachability starts from SimpleX invite or address links, while OpenClaw still applies pairing, allowlists, and group policy.",
   },
   defaultAccount: {
     label: "Default Account",

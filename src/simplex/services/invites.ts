@@ -6,21 +6,7 @@ import type {
   SimplexInviteServiceOptions,
 } from "../../types/invite.js";
 import { resolveRuntimeAccount, withActiveSimplexUser } from "../runtime/account.js";
-
-function contactLinkToString(link: unknown): string | null {
-  if (!link || typeof link !== "object") {
-    return null;
-  }
-  const record = link as Record<string, unknown>;
-  const nested = (record.connLinkContact as Record<string, unknown> | undefined) ?? record;
-  const short = nested.connShortLink;
-  const full = nested.connFullLink;
-  return typeof short === "string" && short
-    ? short
-    : typeof full === "string" && full
-      ? full
-      : null;
-}
+import { extractSimplexLinks, extractSimplexPendingHints } from "../runtime/links.js";
 
 export function resolveInviteMode(value: unknown): SimplexInviteMode | null {
   if (value === "connect" || value === "address") {
@@ -36,15 +22,11 @@ export async function createSimplexInvite(
   const result = await withActiveSimplexUser({
     account,
     logger: params.logger,
-    run: async (userId, api) => {
+    run: async (_userId, client) => {
       if (params.mode === "connect") {
-        const link = await api.apiCreateLink(userId);
-        return { link };
+        return await client.createInviteLink();
       }
-      const existing = await api.apiGetUserAddress(userId);
-      const address = existing ?? (await api.apiCreateUserAddress(userId));
-      const link = contactLinkToString(address);
-      return { link };
+      return await client.createAddress();
     },
   });
   return {
@@ -62,23 +44,29 @@ export async function listSimplexInvites(
   const { addressResponse, contactsResponse, addressLink } = await withActiveSimplexUser({
     account,
     logger: params.logger,
-    run: async (userId, api) => {
+    run: async (userId, client) => {
       const [address, contacts] = await Promise.all([
-        api.apiGetUserAddress(userId),
-        api.apiListContacts(userId),
+        client.getAddress(),
+        client.listContacts(userId),
       ]);
       return {
-        addressResponse: address,
+        addressResponse: address.response,
         contactsResponse: contacts,
-        addressLink: contactLinkToString(address),
+        addressLink: address.link,
       };
     },
   });
   return {
     accountId: account.accountId,
     addressLink,
-    links: addressLink ? [addressLink] : [],
-    pendingHints: [],
+    links: [
+      ...new Set([
+        ...(addressLink ? [addressLink] : []),
+        ...extractSimplexLinks(addressResponse),
+        ...extractSimplexLinks(contactsResponse),
+      ]),
+    ],
+    pendingHints: extractSimplexPendingHints(contactsResponse),
     addressResponse,
     contactsResponse,
   };
@@ -91,8 +79,8 @@ export async function revokeSimplexInvite(
   const revoked = await withActiveSimplexUser({
     account,
     logger: params.logger,
-    run: async (userId, api) => {
-      await api.apiDeleteUserAddress(userId);
+    run: async (_userId, api) => {
+      await api.deleteAddress();
       return true;
     },
   });

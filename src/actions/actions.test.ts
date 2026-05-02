@@ -8,7 +8,7 @@ describe("simplex message tool discovery", () => {
     const cfg = {
       channels: {
         "openclaw-simplex": {
-          dbFilePrefix: "/tmp/openclaw-simplex-test",
+          connection: { wsUrl: "ws://127.0.0.1:5225" },
         },
       },
     } as OpenClawConfig;
@@ -69,7 +69,7 @@ describe("simplex message tool discovery", () => {
     const cfg = {
       channels: {
         "openclaw-simplex": {
-          dbFilePrefix: "/tmp/openclaw-simplex-test",
+          connection: { wsUrl: "ws://127.0.0.1:5225" },
           reactionLevel: "ack",
         },
       },
@@ -86,7 +86,7 @@ describe("simplex message tool discovery", () => {
     const cfg = {
       channels: {
         "openclaw-simplex": {
-          dbFilePrefix: "/tmp/openclaw-simplex-test",
+          connection: { wsUrl: "ws://127.0.0.1:5225" },
           actions: { polls: false },
         },
       },
@@ -101,11 +101,11 @@ describe("simplex message tool discovery", () => {
     const cfg = {
       channels: {
         "openclaw-simplex": {
-          dbFilePrefix: "/tmp/openclaw-simplex-test",
+          connection: { wsUrl: "ws://127.0.0.1:5225" },
           reactionLevel: "ack",
           accounts: {
             work: {
-              dbFilePrefix: "~/.openclaw/simplex/openclaw-simplex-work",
+              connection: { wsUrl: "ws://127.0.0.1:5225" },
               reactionLevel: "minimal",
             },
           },

@@ -67,11 +67,11 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
     detailLabel: "SimpleX Chat",
     docsPath: "/channels/openclaw-simplex",
     docsLabel: SIMPLEX_CHANNEL_ID,
-    blurb: "SimpleX Chat via the official Node runtime",
+    blurb: "SimpleX Chat via an external WebSocket runtime",
     aliases: ["simplex"],
     order: 95,
     systemImage: "link.badge.plus",
-    selectionExtras: ["Invite-based reachability", "Official Node runtime"],
+    selectionExtras: ["Invite-based reachability", "External WebSocket runtime"],
     markdownCapable: true,
     exposure: {
       configured: true,
@@ -114,7 +114,7 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
       configured: account.configured,
       mode: account.mode,
       application: {
-        dbFilePrefix: account.dbFilePrefix,
+        wsUrl: account.wsUrl,
       },
     }),
   },

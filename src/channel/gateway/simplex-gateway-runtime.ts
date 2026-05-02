@@ -18,7 +18,7 @@ export function buildSimplexGatewayRuntime(): NonNullable<
         accountId: account.accountId,
         mode: account.mode,
         application: {
-          dbFilePrefix: account.dbFilePrefix,
+          wsUrl: account.wsUrl,
         },
       });
 
