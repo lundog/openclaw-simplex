@@ -118,7 +118,7 @@ The key runtime boundary is explicit: OpenClaw does not own or supervise the `si
 - Pairing approval, exec approval auth, and allowlist enforcement
 - Invite link, address link, and QR generation
 - Shared `message` actions including `upload-file`, reactions, polls, edits, deletes, and group actions
-- Plugin tools and gateway methods for invite and group administration
+- Plugin tools and gateway methods for invite/address management, runtime diagnostics, contact requests, group links, and link onboarding
 - Runtime status reporting, command handling, heartbeat readiness, and Control UI configuration
 - External WebSocket runtime integration with explicit operator-managed lifecycle
 
@@ -249,6 +249,17 @@ For automation and integrations, OpenClaw exposes gateway methods:
 - `simplex.invite.create`
 - `simplex.invite.list`
 - `simplex.invite.revoke`
+- `simplex.runtime.status`
+- `simplex.runtime.doctor`
+- `simplex.requests.list`
+- `simplex.requests.accept`
+- `simplex.requests.reject`
+- `simplex.groups.create`
+- `simplex.groups.link.create`
+- `simplex.groups.link.list`
+- `simplex.groups.link.revoke`
+- `simplex.connect.plan`
+- `simplex.connect`
 
 ---
 
@@ -274,13 +285,15 @@ This migrates:
 - `plugins.installs.simplex` → `plugins.installs.openclaw-simplex`
 - `plugins.allow` / `plugins.deny` entries from `simplex` → `openclaw-simplex`
 - `channels.simplex` → `channels.openclaw-simplex`
+- legacy top-level runtime fields such as `wsUrl`, `url`, `host`, and `port` are moved under `connection`
+- unsupported managed-mode fields such as `managed`, `cliPath`, `token`, and `dbFilePrefix` are removed from SimpleX config
 - OpenClaw pairing and allowlist state files under the OpenClaw state directory
 
 Current note:
 
 - The current plugin id is `openclaw-simplex`
 - The current channel id is `openclaw-simplex`
-- Gateway method names remain `simplex.invite.*`
+- Gateway method names keep the `simplex.*` prefix
 
 ---
 
@@ -310,6 +323,11 @@ openclaw pairing list
 - `simplex.invite.create`
 - `simplex.invite.list`
 - `simplex.invite.revoke`
+- `simplex.runtime.status`
+- `simplex.runtime.doctor`
+- `simplex.requests.*`
+- `simplex.groups.*`
+- `simplex.connect.*`
 
 **Plugin tools:**
 - `simplex_invite_create`

@@ -53,6 +53,7 @@ What to verify:
 - <code>channels.openclaw-simplex.connection</code> exists
 - <code>wsUrl</code> matches the port where <code>simplex-chat</code> is actually listening
 - if you use <code>wsHost</code>/<code>wsPort</code> instead, those values match the runtime endpoint
+- if you point at a plaintext non-loopback <code>ws://</code> endpoint, either move it behind loopback/private networking or explicitly set <code>connection.allowUnsafeRemoteWs</code>
 - channel status shows the latest connection error if the WebSocket handshake fails
 
 For persistent startup, run <code>simplex-chat</code> under a host-managed service. See [Runtime Setup](/guide/runtime-setup).
@@ -93,6 +94,7 @@ If that fails:
 - confirm the account's <code>connection.wsUrl</code> points at a running runtime
 - check whether the channel account is enabled
 - inspect the latest channel status/runtime error in OpenClaw
+- run <code>openclaw simplex runtime status</code> or <code>openclaw simplex runtime doctor</code> for the active account
 - if you are automating through gateway methods, verify the same account works through the plugin CLI first
 
 ## Media issues
@@ -126,6 +128,24 @@ Write the channel endpoint config explicitly:
 
 ```bash
 openclaw channels add --channel openclaw-simplex --url ws://127.0.0.1:5225
+```
+
+Show runtime status:
+
+```bash
+openclaw simplex runtime status
+```
+
+Run runtime diagnostics:
+
+```bash
+openclaw simplex runtime doctor
+```
+
+List pending SimpleX contact requests:
+
+```bash
+openclaw simplex requests list
 ```
 
 ## Where to inspect errors

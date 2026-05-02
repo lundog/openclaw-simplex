@@ -104,6 +104,7 @@ If <code>accounts</code> is set, each account entry can override the shared root
 | `connection.wsUrl` | WebSocket URL for the running `simplex-chat` WebSocket API. If set, this wins over `wsHost`/`wsPort`. |
 | `connection.wsHost` | Optional host fallback when `wsUrl` is not set. Default: `127.0.0.1`. |
 | `connection.wsPort` | Optional port fallback when `wsUrl` is not set. Default: `5225`. |
+| `connection.allowUnsafeRemoteWs` | Allow plaintext remote WebSocket endpoints. Keep this false unless the endpoint is protected by a private network, firewall, or authenticated TLS proxy. |
 | `connection.autoAcceptFiles` | Whether incoming file transfers should be auto-accepted by the SimpleX runtime. |
 | `connection.connectTimeoutMs` | WebSocket connection timeout in milliseconds. |
 | `accounts.<accountId>` | Per-account overrides for the same schema. |
@@ -119,6 +120,7 @@ This plugin talks to an already running external <code>simplex-chat</code> proce
 ### Good fit for plugin config
 
 - <code>connection.wsUrl</code>, <code>wsHost</code>, <code>wsPort</code>
+- <code>connection.allowUnsafeRemoteWs</code>
 - <code>connection.connectTimeoutMs</code>
 - <code>connection.autoAcceptFiles</code>
 - OpenClaw policy and UX settings such as <code>dmPolicy</code>, <code>allowFrom</code>, <code>groupPolicy</code>, <code>actions</code>, and <code>reactionLevel</code>

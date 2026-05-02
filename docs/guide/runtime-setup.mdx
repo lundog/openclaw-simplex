@@ -19,6 +19,7 @@ Use this rule:
 Plugin-side settings:
 
 - <code>connection.wsUrl</code>
+- <code>connection.allowUnsafeRemoteWs</code>
 - <code>connection.connectTimeoutMs</code>
 - <code>connection.autoAcceptFiles</code>
 - <code>dmPolicy</code>, <code>allowFrom</code>, <code>groupPolicy</code>
@@ -151,3 +152,9 @@ These are reasonable patterns to consider when you run <code>simplex-chat</code>
 If you need to bring up the runtime without immediately serving chat traffic, run it with <code>--maintenance</code> and start chat manually inside the runtime later.
 
 This is a <code>simplex-chat</code> operational mode, not an OpenClaw channel config field, so it belongs in the service command only when you intentionally want that behavior.
+
+## Remote WebSocket endpoints
+
+Prefer loopback, a private sidecar network, or <code>wss://</code> with access controls. Plaintext <code>ws://</code> endpoints on non-loopback hosts are blocked by default because the WebSocket API controls the SimpleX runtime.
+
+Only set <code>connection.allowUnsafeRemoteWs: true</code> when that endpoint is protected by a private network, firewall, or authenticated TLS proxy.

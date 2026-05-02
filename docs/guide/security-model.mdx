@@ -41,6 +41,7 @@ There are three boundaries to keep straight:
 - You decide where the runtime runs, which relay path it uses, and whether relays are public or self-hosted.
 - If you need a fully internal deployment, keep <code>simplex-chat</code> and your relays inside that network boundary.
 - External runtime mode is the supported deployment model for this plugin. OpenClaw does not spawn or supervise <code>simplex-chat</code> here.
+- Plaintext remote WebSocket endpoints are blocked by default. Use loopback, private networking, or <code>wss://</code>; set <code>connection.allowUnsafeRemoteWs</code> only when the endpoint is protected by other controls.
 
 ## What this does not protect against
 
@@ -53,4 +54,5 @@ There are three boundaries to keep straight:
 - Start with `dmPolicy: "pairing"` and `groupPolicy: "allowlist"`.
 - Keep `allowFrom`/`groupAllowFrom` narrow.
 - Prefer one-time invite links for onboarding and revoke address links when they are no longer needed.
+- Protect the SimpleX WebSocket endpoint, database, and file-transfer directories as sensitive local state.
 - Monitor status snapshots and logs for repeated authorization failures.
