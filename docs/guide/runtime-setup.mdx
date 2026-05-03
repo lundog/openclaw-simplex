@@ -12,13 +12,10 @@ If you want the SimpleX runtime to start automatically on login or machine boot,
 The plugin CLI can generate and install a host service for the current machine:
 
 ```bash
-openclaw simplex runtime service plan
 openclaw simplex runtime service install
-openclaw simplex runtime service start
-openclaw simplex runtime service status
 ```
 
-The service helper auto-detects <code>systemd --user</code> on Linux, <code>launchd</code> on macOS, and SysV init as a Linux fallback. It prints the generated service file and command plan first, and it asks for interactive approval before every file write or service start/stop command. Use <code>--provider systemd</code>, <code>--provider launchd</code>, or <code>--provider sysvinit</code> to override detection.
+The service helper auto-detects <code>systemd --user</code> on Linux, <code>launchd</code> on macOS, and SysV init as a Linux fallback. It prints the generated service file and next commands first, and it asks for interactive approval before writing files. It prints supervisor commands for the operator to run instead of executing them from the plugin. Use <code>--provider systemd</code>, <code>--provider launchd</code>, or <code>--provider sysvinit</code> to override detection.
 
 Common install options:
 

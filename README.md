@@ -211,12 +211,10 @@ OpenClaw does not supervise `simplex-chat` for external plugins. If you want it 
 The plugin CLI can generate that service for the current host:
 
 ```bash
-openclaw simplex runtime service plan
 openclaw simplex runtime service install
-openclaw simplex runtime service start
 ```
 
-It auto-detects user systemd on Linux, launchd on macOS, or SysV init as a Linux fallback, prints the target file/commands, and asks for approval before every file write or service start/stop command.
+It auto-detects user systemd on Linux, launchd on macOS, or SysV init as a Linux fallback, prints the target file and next commands, and asks for approval before writing the service file. It prints supervisor commands for you to run instead of executing them from the plugin, so install-time scanners do not see shell execution capability.
 
 Keep the split clear:
 

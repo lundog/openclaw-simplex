@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { constants as fsConstants } from "node:fs";
 import { access, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -288,6 +287,10 @@ function printServicePlan(service: ResolvedRuntimeService): void {
   );
 }
 
+function printCommand(label: string, command: string[]): void {
+  console.log(`${label}: ${command.map(shellQuote).join(" ")}`);
+}
+
 async function confirmAction(message: string): Promise<boolean> {
   if (!input.isTTY) {
     throw new Error(`${message} Refusing because stdin is not interactive.`);
@@ -299,44 +302,6 @@ async function confirmAction(message: string): Promise<boolean> {
   } finally {
     rl.close();
   }
-}
-
-async function runCommand(command: string[]): Promise<void> {
-  const approved = await confirmAction(`Run command: ${command.map(shellQuote).join(" ")}`);
-  if (!approved) {
-    console.log("Skipped.");
-    return;
-  }
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(command[0] ?? "", command.slice(1), { stdio: "inherit" });
-    child.on("error", reject);
-    child.on("exit", (code) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      reject(new Error(`${command[0]} exited with code ${code}`));
-    });
-  });
-}
-
-async function runReadonlyCommand(command: string[]): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(command[0] ?? "", command.slice(1), { stdio: "inherit" });
-    child.on("error", reject);
-    child.on("exit", (code) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      reject(new Error(`${command[0]} exited with code ${code}`));
-    });
-  });
-}
-
-export async function runRuntimeServicePlanCli(opts: RuntimeServiceOptions): Promise<void> {
-  const provider = await detectProvider(opts.provider);
-  printServicePlan(resolveRuntimeService(provider, opts));
 }
 
 export async function runRuntimeServiceInstallCli(opts: RuntimeServiceOptions): Promise<void> {
@@ -356,27 +321,6 @@ export async function runRuntimeServiceInstallCli(opts: RuntimeServiceOptions): 
   await mkdir(path.dirname(service.servicePath), { recursive: true });
   await writeFile(service.servicePath, service.content, "utf8");
   console.log(`Wrote ${service.servicePath}`);
-  if (provider === "systemd") {
-    await runCommand(service.installCommand);
-  }
-}
-
-export async function runRuntimeServiceStartCli(opts: RuntimeServiceOptions): Promise<void> {
-  const provider = await detectProvider(opts.provider);
-  const service = resolveRuntimeService(provider, opts);
-  const command = provider === "launchd" ? service.installCommand : service.startCommand;
-  await runCommand(command);
-  if (provider === "launchd") {
-    await runCommand(service.startCommand);
-  }
-}
-
-export async function runRuntimeServiceStopCli(opts: RuntimeServiceOptions): Promise<void> {
-  const provider = await detectProvider(opts.provider);
-  await runCommand(resolveRuntimeService(provider, opts).stopCommand);
-}
-
-export async function runRuntimeServiceStatusCli(opts: RuntimeServiceOptions): Promise<void> {
-  const provider = await detectProvider(opts.provider);
-  await runReadonlyCommand(resolveRuntimeService(provider, opts).statusCommand);
+  printCommand("Run after install", service.installCommand);
+  printCommand("Start service", service.startCommand);
 }
