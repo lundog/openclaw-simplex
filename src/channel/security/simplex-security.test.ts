@@ -2,6 +2,7 @@ import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import { describe, expect, it } from "vitest";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import {
+  collectSimplexSecurityAuditFindings,
   formatSimplexAllowFrom,
   isSimplexAllowlisted,
   parseSimplexAllowlistEntry,
@@ -108,7 +109,7 @@ describe("simplex allowlist", () => {
       wsUrl: "ws://127.0.0.1:5225",
       wsHost: "127.0.0.1",
       wsPort: 5225,
-      config: { markdown: {}, dmPolicy: "open" },
+      config: { markdown: {}, allowFrom: [], groupAllowFrom: [], dmPolicy: "open" },
     };
     const result = resolveSimplexDmPolicy({
       cfg,
@@ -152,5 +153,37 @@ describe("simplex allowlist", () => {
         allowGroupId: true,
       })
     ).toBe(true);
+  });
+
+  it("audits open policies and unsafe websocket endpoints", () => {
+    const findings = collectSimplexSecurityAuditFindings({
+      cfg: { channels: {} } as OpenClawConfig,
+      account: {
+        accountId: "alpha",
+        enabled: true,
+        configured: true,
+        mode: "external",
+        wsUrl: "ws://example.com:5225?token=secret",
+        wsHost: "example.com",
+        wsPort: 5225,
+        config: {
+          allowFrom: [],
+          groupAllowFrom: [],
+          dmPolicy: "open",
+          groupPolicy: "open",
+          connection: {
+            wsUrl: "ws://example.com:5225?token=secret",
+          },
+        },
+      },
+    });
+
+    expect(findings.map((finding) => finding.checkId)).toEqual([
+      "simplex.dm-policy-open",
+      "simplex.group-policy-open",
+      "simplex.ws-endpoint-blocked",
+    ]);
+    expect(findings[2]?.detail).toContain("?redacted");
+    expect(findings[2]?.detail).not.toContain("secret");
   });
 });

@@ -35,56 +35,7 @@ describe("simplex heartbeat adapter", () => {
     });
   });
 
-  it("resolves direct and group recipients from config", () => {
-    const heartbeat = buildSimplexHeartbeat();
-
-    expect(
-      heartbeat.resolveRecipients?.({
-        cfg: {
-          channels: {
-            "openclaw-simplex": {
-              connection: { wsUrl: "ws://127.0.0.1:5225" },
-              allowFrom: ["alice", "@bob"],
-              groupAllowFrom: ["group:ops"],
-            },
-          },
-        } as OpenClawConfig,
-      })
-    ).toEqual({
-      recipients: ["@alice", "@bob"],
-      source: "allowFrom",
-    });
-
-    expect(
-      heartbeat.resolveRecipients?.({
-        cfg: {
-          channels: {
-            "openclaw-simplex": {
-              connection: { wsUrl: "ws://127.0.0.1:5225" },
-              allowFrom: ["alice"],
-              groupAllowFrom: ["group:ops"],
-            },
-          },
-        } as OpenClawConfig,
-        opts: { all: true },
-      })
-    ).toEqual({
-      recipients: ["@alice", "#ops"],
-      source: "all",
-    });
-  });
-
-  it("prefers an explicit recipient override", () => {
-    const heartbeat = buildSimplexHeartbeat();
-
-    expect(
-      heartbeat.resolveRecipients?.({
-        cfg: { channels: {} } as OpenClawConfig,
-        opts: { to: "#ops" },
-      })
-    ).toEqual({
-      recipients: ["#ops"],
-      source: "flag",
-    });
+  it("does not expose removed heartbeat recipient resolution hooks", () => {
+    expect(buildSimplexHeartbeat()).not.toHaveProperty("resolveRecipients");
   });
 });

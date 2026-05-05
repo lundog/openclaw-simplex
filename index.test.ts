@@ -323,7 +323,6 @@ describe("plugin entry registration modes", () => {
     });
     expect(simplexPlugin.heartbeat).toBeTruthy();
     expect(typeof simplexPlugin.heartbeat?.checkReady).toBe("function");
-    expect(typeof simplexPlugin.heartbeat?.resolveRecipients).toBe("function");
   });
 
   it("marks destructive simplex tools as owner-only", () => {

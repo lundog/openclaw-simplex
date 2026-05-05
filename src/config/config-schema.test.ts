@@ -31,6 +31,14 @@ const packageJson = JSON.parse(
 ) as {
   openclaw?: {
     setupEntry?: string;
+    compat?: {
+      pluginApi?: string;
+      minGatewayVersion?: string;
+    };
+    build?: {
+      openclawVersion?: string;
+      pluginSdkVersion?: string;
+    };
     channel?: {
       id?: string;
       label?: string;
@@ -40,6 +48,7 @@ const packageJson = JSON.parse(
       systemImage?: string;
       selectionExtras?: string[];
       markdownCapable?: boolean;
+      forceAccountBinding?: boolean;
       exposure?: {
         configured?: boolean;
         setup?: boolean;
@@ -71,14 +80,23 @@ describe("simplex config schema manifest", () => {
     expect(channelManifest?.description).toBe(packageJson.openclaw?.channel?.blurb);
   });
 
-  it("advertises the 2026.4.29 channel selection metadata", () => {
-    expect(packageJson.openclaw?.install?.minHostVersion).toBe(">=2026.4.29");
+  it("advertises the 2026.5.4 compatibility and channel selection metadata", () => {
+    expect(packageJson.openclaw?.install?.minHostVersion).toBe(">=2026.5.4");
+    expect(packageJson.openclaw?.compat).toEqual({
+      pluginApi: ">=2026.5.4",
+      minGatewayVersion: "2026.5.4",
+    });
+    expect(packageJson.openclaw?.build).toEqual({
+      openclawVersion: "2026.5.4",
+      pluginSdkVersion: "2026.5.4",
+    });
     expect(packageJson.openclaw?.channel).toMatchObject({
       detailLabel: "SimpleX Chat",
       aliases: ["simplex"],
       systemImage: "link.badge.plus",
       selectionExtras: ["Invite-based reachability", "External WebSocket runtime"],
       markdownCapable: true,
+      forceAccountBinding: true,
       exposure: {
         configured: true,
         setup: true,

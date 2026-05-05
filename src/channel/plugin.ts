@@ -32,7 +32,10 @@ import { buildSimplexHeartbeat } from "./gateway/simplex-heartbeat.js";
 import { buildSimplexOutbound } from "./messaging/simplex-outbound.js";
 import { simplexApprovalAuth } from "./security/approval-auth.js";
 import { simplexCommandPolicy } from "./security/command-policy.js";
-import { formatSimplexAllowFrom } from "./security/simplex-security.js";
+import {
+  collectSimplexSecurityAuditFindings,
+  formatSimplexAllowFrom,
+} from "./security/simplex-security.js";
 import { simplexSetupAdapter } from "./setup.js";
 import {
   formatSimplexTargetDisplay,
@@ -183,6 +186,8 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
         `- SimpleX groups: groupPolicy="open" allows any member to trigger the bot. Set channels.${SIMPLEX_CHANNEL_ID}.groupPolicy="allowlist" + channels.${SIMPLEX_CHANNEL_ID}.groupAllowFrom to restrict senders.`,
       ];
     },
+    collectAuditFindings: ({ account, cfg }) =>
+      collectSimplexSecurityAuditFindings({ account, cfg }),
   },
   groups: {
     resolveRequireMention: resolveSimplexGroupRequireMention,

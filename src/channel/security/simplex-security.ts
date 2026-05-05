@@ -1,9 +1,18 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import { resolveDefaultSimplexAccountId } from "../../config/accounts.js";
 import { SIMPLEX_CHANNEL_ID } from "../../constants.js";
+import { describeSimplexWsEndpointSecurity } from "../../simplex/runtime/security.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import type { SimplexAllowlistEntry } from "../../types/security.js";
 import { stripSimplexPrefix } from "../shared/simplex-common.js";
+
+type SimplexAuditFinding = {
+  checkId: string;
+  severity: "info" | "warn" | "critical";
+  title: string;
+  detail: string;
+  remediation?: string;
+};
 
 function normalizeSimplexId(value: string): string {
   return value.trim().toLowerCase();
@@ -118,4 +127,55 @@ export function isSimplexAllowlisted(params: {
     }
   }
   return false;
+}
+
+export function collectSimplexSecurityAuditFindings(params: {
+  account: ResolvedSimplexAccount;
+  cfg: OpenClawConfig;
+}): SimplexAuditFinding[] {
+  const { account, cfg } = params;
+  const findings: SimplexAuditFinding[] = [];
+  const dmPolicy = account.config.dmPolicy ?? "pairing";
+  const defaultGroupPolicy = cfg.channels?.defaults?.groupPolicy;
+  const groupPolicy = account.config.groupPolicy ?? defaultGroupPolicy ?? "allowlist";
+
+  if (dmPolicy === "open") {
+    findings.push({
+      checkId: "simplex.dm-policy-open",
+      severity: "warn",
+      title: "SimpleX DMs accept any contact",
+      detail: 'dmPolicy="open" lets any SimpleX contact reaching this account trigger the agent.',
+      remediation:
+        'Use dmPolicy="pairing" for invite-based approval or dmPolicy="allowlist" with allowFrom.',
+    });
+  }
+
+  if (groupPolicy === "open") {
+    findings.push({
+      checkId: "simplex.group-policy-open",
+      severity: "warn",
+      title: "SimpleX groups accept any member",
+      detail: 'groupPolicy="open" lets any member of a reachable SimpleX group trigger the agent.',
+      remediation: 'Use groupPolicy="allowlist" and groupAllowFrom for specific groups/senders.',
+    });
+  }
+
+  const endpoint = describeSimplexWsEndpointSecurity(account.wsUrl, {
+    allowUnsafeRemoteWs: account.config.connection?.allowUnsafeRemoteWs,
+  });
+  for (const warning of endpoint.warnings) {
+    findings.push({
+      checkId:
+        endpoint.blockingWarnings.length > 0
+          ? "simplex.ws-endpoint-blocked"
+          : "simplex.ws-endpoint-warning",
+      severity: endpoint.blockingWarnings.length > 0 ? "critical" : "warn",
+      title: "SimpleX WebSocket endpoint weakens transport privacy",
+      detail: warning,
+      remediation:
+        "Prefer ws://127.0.0.1, a private sidecar network, or wss:// behind authenticated network controls.",
+    });
+  }
+
+  return findings;
 }
