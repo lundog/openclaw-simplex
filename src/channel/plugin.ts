@@ -130,6 +130,7 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
     resolveGroupPolicy: (account) => account.config.groupPolicy,
   }),
   messaging: {
+    targetPrefixes: ["simplex"],
     normalizeTarget: (raw) => stripSimplexPrefix(raw),
     parseExplicitTarget: ({ raw }) => parseSimplexExplicitTarget(raw),
     resolveSessionConversation: ({ kind, rawId }) => {

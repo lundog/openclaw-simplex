@@ -77,6 +77,10 @@
             "minimum": 0,
             "maximum": 9007199254740991
           },
+          "contextVisibility": {
+            "type": "string",
+            "enum": ["all", "allowlist", "allowlist_quote"]
+          },
           "dms": {
             "type": "object",
             "propertyNames": {
@@ -255,6 +259,10 @@
                   "type": "integer",
                   "minimum": 0,
                   "maximum": 9007199254740991
+                },
+                "contextVisibility": {
+                  "type": "string",
+                  "enum": ["all", "allowlist", "allowlist_quote"]
                 },
                 "dms": {
                   "type": "object",
@@ -582,6 +590,18 @@
           "label": "DM History Limit",
           "help": "Optional direct-message transcript window to retain for reply context.",
           "advanced": true
+        },
+        "contextVisibility": {
+          "label": "Context Visibility",
+          "help": "Controls whether supplemental chat context is visible broadly or only for allowlisted senders.",
+          "advanced": true,
+          "tags": ["security"]
+        },
+        "accounts.*.contextVisibility": {
+          "label": "Context Visibility",
+          "help": "Controls whether supplemental chat context is visible broadly or only for allowlisted senders.",
+          "advanced": true,
+          "tags": ["security"]
         },
         "allowFrom": {
           "label": "DM Allowlist",

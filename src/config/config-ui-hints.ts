@@ -100,6 +100,12 @@ const accountScopedUiHints = withAccountScope({
     help: "Optional direct-message transcript window to retain for reply context.",
     advanced: true,
   },
+  contextVisibility: {
+    label: "Context Visibility",
+    help: "Controls whether supplemental chat context is visible broadly or only for allowlisted senders.",
+    advanced: true,
+    tags: ["security"],
+  },
   allowFrom: {
     label: "DM Allowlist",
     help: 'Allowed SimpleX senders for direct messages. Use ["*"] only when you intentionally want broad DM reachability.',
