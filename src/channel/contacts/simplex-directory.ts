@@ -42,6 +42,26 @@ function normalizeQuery(query?: string | null): string {
   return (query ?? "").trim().toLowerCase();
 }
 
+function applyDirectoryFilter(params: {
+  entries: ChannelDirectoryEntry[];
+  query?: string | null;
+  limit?: number | null;
+}): ChannelDirectoryEntry[] {
+  const q = normalizeQuery(params.query);
+  const filtered = q
+    ? params.entries.filter(
+        (entry) =>
+          entry.id.toLowerCase().includes(q) || (entry.name?.toLowerCase().includes(q) ?? false)
+      )
+    : params.entries;
+  const limit = params.limit && params.limit > 0 ? params.limit : undefined;
+  return limit ? filtered.slice(0, limit) : filtered;
+}
+
+function isDirectoryEntry(entry: ChannelDirectoryEntry | null): entry is ChannelDirectoryEntry {
+  return entry !== null;
+}
+
 function mapContactEntry(entry: unknown): ChannelDirectoryEntry | null {
   if (!entry || typeof entry !== "object") {
     return null;
@@ -198,16 +218,12 @@ async function listContactsLive(params: {
     account: params.account,
     run: async (client) => {
       const contacts = await client.listContacts(userId);
-      const mapped = contacts.map(mapContactEntry).filter(Boolean) as ChannelDirectoryEntry[];
-      const q = normalizeQuery(params.query);
-      const filtered = q
-        ? mapped.filter(
-            (entry) =>
-              entry.id.toLowerCase().includes(q) || (entry.name?.toLowerCase().includes(q) ?? false)
-          )
-        : mapped;
-      const limit = params.limit && params.limit > 0 ? params.limit : undefined;
-      return limit ? filtered.slice(0, limit) : filtered;
+      const mapped = contacts.map(mapContactEntry).filter(isDirectoryEntry);
+      return applyDirectoryFilter({
+        entries: mapped,
+        query: params.query,
+        limit: params.limit,
+      });
     },
   });
 }
@@ -231,16 +247,12 @@ async function listGroupsLive(params: {
     account: params.account,
     run: async (client) => {
       const groups = await client.listGroups({ userId, search: params.query });
-      const mapped = groups.map(mapGroupEntry).filter(Boolean) as ChannelDirectoryEntry[];
-      const q = normalizeQuery(params.query);
-      const filtered = q
-        ? mapped.filter(
-            (entry) =>
-              entry.id.toLowerCase().includes(q) || (entry.name?.toLowerCase().includes(q) ?? false)
-          )
-        : mapped;
-      const limit = params.limit && params.limit > 0 ? params.limit : undefined;
-      return limit ? filtered.slice(0, limit) : filtered;
+      const mapped = groups.map(mapGroupEntry).filter(isDirectoryEntry);
+      return applyDirectoryFilter({
+        entries: mapped,
+        query: params.query,
+        limit: params.limit,
+      });
     },
   });
 }
@@ -259,9 +271,10 @@ async function listGroupMembersLive(params: {
     account: params.account,
     run: async (client) => {
       const members = await client.listGroupMembers({ groupId });
-      const mapped = members.map(mapMemberEntry).filter(Boolean) as ChannelDirectoryEntry[];
-      const limit = params.limit && params.limit > 0 ? params.limit : undefined;
-      return limit ? mapped.slice(0, limit) : mapped;
+      return applyDirectoryFilter({
+        entries: members.map(mapMemberEntry).filter(isDirectoryEntry),
+        limit: params.limit,
+      });
     },
   });
 }

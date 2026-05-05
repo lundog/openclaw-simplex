@@ -7,7 +7,7 @@ import type { ResolvedSimplexAccount } from "../../types/config.js";
 import { assertSimplexOutboundAccountReady } from "../shared/simplex-common.js";
 import { buildAndSendSimplexMessages } from "./simplex-send.js";
 
-function renderSimplexPollText(params: {
+export function renderSimplexPollText(params: {
   question: string;
   options: string[];
   maxSelections: number;

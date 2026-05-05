@@ -191,7 +191,11 @@ export function parseSimplexNumericId(value: number | string): number | null {
       : raw.includes(":")
         ? raw.slice(raw.indexOf(":") + 1)
         : raw;
-  const id = Number.parseInt(normalized, 10);
+  const token = normalized.trim();
+  if (!isSignedIntegerToken(token)) {
+    return null;
+  }
+  const id = Number.parseInt(token, 10);
   return Number.isFinite(id) ? id : null;
 }
 

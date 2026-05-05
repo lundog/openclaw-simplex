@@ -3,6 +3,7 @@ import { resolveDefaultSimplexAccountId, resolveSimplexAccount } from "../../con
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import type { SimplexLogger } from "../../types/simplex.js";
 import type { SimplexClient } from "./client.js";
+import { parseSimplexNumericId } from "./commands.js";
 import { withSimplexClient } from "./transport.js";
 
 export function resolveRuntimeAccount(
@@ -31,11 +32,15 @@ export async function withActiveSimplexUser<T>(params: {
     logger: params.logger,
     run: async (client) => {
       const user = (await client.getActiveUser()) as Record<string, unknown> | undefined;
-      const userId = typeof user?.userId === "number" ? user.userId : Number(user?.userId);
-      if (!Number.isFinite(userId)) {
+      const rawUserId = user?.userId;
+      const userId =
+        typeof rawUserId === "number" || typeof rawUserId === "string"
+          ? parseSimplexNumericId(rawUserId)
+          : null;
+      if (userId === null) {
         throw new Error(`SimpleX account "${params.account.accountId}" has no active user`);
       }
-      return await params.run(Math.trunc(userId), client);
+      return await params.run(userId, client);
     },
   });
 }

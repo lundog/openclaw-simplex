@@ -100,7 +100,6 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
       listAccountIds: (cfg) => listSimplexAccountIds(cfg),
       resolveAccount: resolveSimplexConfigAccount,
       defaultAccountId: (cfg) => resolveDefaultSimplexAccountId(cfg),
-      inspectAccount: (cfg, accountId) => resolveSimplexConfigAccount(cfg, accountId).config,
       clearBaseFields: SIMPLEX_ACCOUNT_CONFIG_CLEAR_FIELDS,
       preserveSectionOnDefaultDelete: true,
       resolveAllowFrom: (account) => account.config.allowFrom,

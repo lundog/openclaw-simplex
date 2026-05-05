@@ -47,11 +47,14 @@ describe("simplex message tool discovery", () => {
         mediaUrl: expect.any(Object),
         filePath: expect.any(Object),
         caption: expect.any(Object),
+        pollQuestion: expect.any(Object),
+        pollOption: expect.any(Object),
         emoji: expect.any(Object),
         displayName: expect.any(Object),
         participant: expect.any(Object),
       }),
     });
+    expect(simplexMessageActions.supportsAction?.({ action: "poll" })).toBe(true);
   });
 
   it("returns null when no configured accounts are available", () => {

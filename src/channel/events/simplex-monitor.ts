@@ -159,10 +159,8 @@ async function handleSimplexEvent(params: {
   }
 
   if (event.type === "rcvFileDescrReady") {
-    const fileId = Number(
-      (event as { rcvFileTransfer?: { fileId?: number } })?.rcvFileTransfer?.fileId
-    );
-    if (Number.isFinite(fileId)) {
+    const fileId = (event as { rcvFileTransfer?: { fileId?: unknown } })?.rcvFileTransfer?.fileId;
+    if (typeof fileId === "number" && Number.isInteger(fileId) && fileId > 0) {
       await requestFileDownload({ fileId, account, client, runtime });
     }
     return;

@@ -45,16 +45,21 @@ export function buildSimplexStatus(): NonNullable<ChannelPlugin<ResolvedSimplexA
         return issues;
       }),
     buildChannelSummary: ({ snapshot, account }) => {
+      const connection = account.config.connection;
+      const configured = snapshot.configured ?? account.configured;
+      const running = snapshot.running ?? false;
+      const connected = snapshot.connected ?? false;
+      const lastError = snapshot.lastError ?? null;
       const security = describeSimplexWsEndpointSecurity(account.wsUrl, {
-        allowUnsafeRemoteWs: account.config.connection?.allowUnsafeRemoteWs,
+        allowUnsafeRemoteWs: connection?.allowUnsafeRemoteWs,
       });
       return {
-        configured: snapshot.configured ?? false,
-        running: snapshot.running ?? false,
-        connected: snapshot.connected ?? false,
+        configured,
+        running,
+        connected,
         lastStartAt: snapshot.lastStartAt ?? null,
         lastStopAt: snapshot.lastStopAt ?? null,
-        lastError: snapshot.lastError ?? null,
+        lastError,
         lastConnectedAt: snapshot.lastConnectedAt ?? null,
         lastDisconnect: snapshot.lastDisconnect ?? null,
         lastEventAt: snapshot.lastEventAt ?? null,
@@ -62,19 +67,20 @@ export function buildSimplexStatus(): NonNullable<ChannelPlugin<ResolvedSimplexA
           security.blockingWarnings.length > 0
             ? "error"
             : resolveSimplexHealthState({
-                configured: snapshot.configured ?? false,
-                running: snapshot.running ?? false,
-                connected: snapshot.connected ?? false,
-                lastError: snapshot.lastError ?? null,
+                configured,
+                running,
+                connected,
+                lastError,
               }),
-        mode: snapshot.mode ?? null,
+        mode: snapshot.mode ?? account.mode,
         wsUrl: account.wsUrl,
         transportWarnings: security.warnings,
       };
     },
     buildAccountSnapshot: async ({ account, runtime }) => {
+      const connection = account.config.connection;
       const security = describeSimplexWsEndpointSecurity(account.wsUrl, {
-        allowUnsafeRemoteWs: account.config.connection?.allowUnsafeRemoteWs,
+        allowUnsafeRemoteWs: connection?.allowUnsafeRemoteWs,
       });
       return {
         accountId: account.accountId,

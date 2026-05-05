@@ -10,9 +10,10 @@ export async function connectSimplexWithRetry(params: {
   baseDelayMs?: number;
   maxDelayMs?: number;
 }): Promise<void> {
-  const attempts = params.attempts ?? 10;
+  const attempts = params.attempts ?? Number.POSITIVE_INFINITY;
   let delayMs = params.baseDelayMs ?? 500;
   const maxDelayMs = params.maxDelayMs ?? 5_000;
+  const attemptsLabel = Number.isFinite(attempts) ? String(attempts) : "unbounded";
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     if (params.abortSignal.aborted) {
@@ -26,7 +27,7 @@ export async function connectSimplexWithRetry(params: {
         throw err;
       }
       params.runtime.error?.(
-        `[${params.accountId}] SimpleX connect failed (attempt ${attempt}/${attempts}): ${String(err)}; retrying in ${delayMs}ms`
+        `[${params.accountId}] SimpleX connect failed (attempt ${attempt}/${attemptsLabel}): ${String(err)}; retrying in ${delayMs}ms`
       );
       await sleep(delayMs, params.abortSignal);
       delayMs = Math.min(maxDelayMs, delayMs * 2);

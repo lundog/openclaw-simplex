@@ -1,6 +1,9 @@
+import { readStringArrayParam } from "openclaw/plugin-sdk/channel-actions";
 import type { ChannelMessageActionName } from "openclaw/plugin-sdk/channel-contract";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
+import { normalizePollInput, resolvePollMaxSelections } from "openclaw/plugin-sdk/poll-runtime";
 import { buildComposedMessages } from "../channel/media/simplex-media.js";
+import { renderSimplexPollText } from "../channel/messaging/simplex-outbound.js";
 import { resolveSimplexChatItemId } from "../simplex/runtime/api.js";
 import { withSimplexClient } from "../simplex/runtime/transport.js";
 import type { SimplexActionParams, ToolResult } from "../types/actions.js";
@@ -67,6 +70,35 @@ export async function executeSimplexMessageAction(params: {
   toolParams: SimplexActionParams;
 }): Promise<ToolResult | null> {
   const { action, cfg, account, chatRef, toolParams } = params;
+
+  if (action === "poll") {
+    const question =
+      readStringParam(toolParams, "pollQuestion", { allowEmpty: false }) ??
+      readStringParam(toolParams, "question", { allowEmpty: false });
+    if (!question) {
+      throw new Error("pollQuestion required");
+    }
+    const options = readStringArrayParam(toolParams, "pollOption", { required: true }) ?? [];
+    if (options.length < 2) {
+      throw new Error("pollOption requires at least two values");
+    }
+    const allowMultiselect =
+      typeof toolParams.pollMulti === "boolean" ? toolParams.pollMulti : false;
+    const durationHours = readNumberParam(toolParams, "pollDurationHours", { integer: true });
+    const normalized = normalizePollInput({
+      question,
+      options,
+      maxSelections: resolvePollMaxSelections(options.length, allowMultiselect),
+      durationHours,
+    });
+    const composedMessages = await buildComposedMessages({
+      cfg,
+      accountId: account.accountId,
+      text: renderSimplexPollText(normalized),
+    });
+    const result = await sendActionComposedMessages({ account, chatRef, composedMessages });
+    return jsonResult({ ok: true, poll: true, to: chatRef, messageId: result.messageId ?? null });
+  }
 
   if (action === "upload-file") {
     const mediaUrl = readUploadMediaUrl(toolParams);

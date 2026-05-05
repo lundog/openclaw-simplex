@@ -13,7 +13,12 @@ function readRole(value: unknown, fallback: string): SimplexGroupMemberRole {
 }
 
 function readGroupId(value: unknown): number {
-  const groupId = typeof value === "number" ? value : Number(String(value ?? "").trim());
+  const groupId =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^[0-9]+$/.test(value.trim())
+        ? Number(value.trim())
+        : NaN;
   if (!Number.isInteger(groupId) || groupId <= 0) {
     throw new Error("groupId must be a positive integer");
   }

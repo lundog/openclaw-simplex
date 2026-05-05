@@ -1,5 +1,5 @@
 import { constants as fsConstants } from "node:fs";
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { stdin as input, stdout as output } from "node:process";
@@ -62,8 +62,15 @@ async function pathExists(value: string): Promise<boolean> {
 async function commandExists(command: string): Promise<boolean> {
   const paths = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
   for (const dir of paths) {
-    if (await pathExists(path.join(dir, command))) {
-      return true;
+    const candidate = path.join(dir, command);
+    try {
+      const stats = await stat(candidate);
+      if (stats.isFile()) {
+        await access(candidate, fsConstants.X_OK);
+        return true;
+      }
+    } catch {
+      // keep scanning PATH
     }
   }
   return false;

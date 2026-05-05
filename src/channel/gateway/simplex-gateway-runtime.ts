@@ -1,4 +1,5 @@
 import type { ChannelPlugin } from "openclaw/plugin-sdk/channel-core";
+import { createAccountStatusSink, waitUntilAbort } from "openclaw/plugin-sdk/channel-runtime";
 import {
   getActiveSimplexClient,
   registerActiveSimplexClient,
@@ -13,13 +14,19 @@ export function buildSimplexGatewayRuntime(): NonNullable<
   return {
     startAccount: async (ctx) => {
       const account = ctx.account;
-      ctx.log?.info?.(`[${account.accountId}] SimpleX start requested (mode=${account.mode})`);
-      ctx.setStatus({
+      const startedAt = Date.now();
+      const setStatus = createAccountStatusSink({
         accountId: account.accountId,
-        mode: account.mode,
-        application: {
-          wsUrl: account.wsUrl,
-        },
+        setStatus: ctx.setStatus,
+      });
+      ctx.log?.info?.(`[${account.accountId}] SimpleX start requested (mode=${account.mode})`);
+      setStatus({
+        connected: false,
+        running: true,
+        lastStartAt: startedAt,
+        lastStopAt: null,
+        lastError: null,
+        healthState: account.configured ? "starting" : "idle",
       });
 
       ctx.log?.info?.(`[${account.accountId}] Starting SimpleX monitor`);
@@ -28,24 +35,28 @@ export function buildSimplexGatewayRuntime(): NonNullable<
         cfg: ctx.cfg,
         runtime: ctx.runtime,
         abortSignal: ctx.abortSignal,
-        statusSink: (patch) => ctx.setStatus({ accountId: account.accountId, ...patch }),
+        statusSink: setStatus,
+      }).catch((err) => {
+        if (!ctx.abortSignal.aborted) {
+          setStatus({
+            running: false,
+            connected: false,
+            lastStopAt: Date.now(),
+            lastError: err instanceof Error ? err.message : String(err),
+            healthState: "error",
+          });
+        }
+        throw err;
       });
       ctx.log?.info?.(`[${account.accountId}] SimpleX monitor started`);
 
       await registerActiveSimplexClient(account, monitor.client);
-
-      await new Promise<void>((resolve) => {
-        ctx.abortSignal.addEventListener(
-          "abort",
-          () => {
-            resolve();
-          },
-          { once: true }
-        );
-      });
-
-      unregisterActiveSimplexClient(account, monitor.client);
-      await monitor.client.close().catch(() => undefined);
+      try {
+        await waitUntilAbort(ctx.abortSignal);
+      } finally {
+        unregisterActiveSimplexClient(account, monitor.client);
+        await monitor.client.close().catch(() => undefined);
+      }
     },
     stopAccount: async (ctx) => {
       const client = getActiveSimplexClient(ctx.account.accountId);

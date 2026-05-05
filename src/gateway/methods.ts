@@ -57,7 +57,12 @@ function readRequiredString(params: Record<string, unknown> | undefined, key: st
 
 function readRequiredInteger(params: Record<string, unknown> | undefined, key: string): number {
   const raw = params?.[key];
-  const value = typeof raw === "number" ? raw : Number(String(raw ?? "").trim());
+  const value =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && /^[0-9]+$/.test(raw.trim())
+        ? Number(raw.trim())
+        : NaN;
   if (!Number.isInteger(value) || value <= 0) {
     throw new Error(`${key} must be a positive integer`);
   }

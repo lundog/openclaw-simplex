@@ -60,9 +60,9 @@ const LEGACY_RUNTIME_KEYS = new Set([
   "wsUrl",
 ]);
 
-function dedupeStrings(values: unknown[] | undefined): string[] | undefined {
+function dedupeStrings(values: unknown): string[] | undefined {
   if (!Array.isArray(values)) {
-    return values as string[] | undefined;
+    return undefined;
   }
   return [
     ...new Set(
@@ -284,7 +284,7 @@ export function migrateConfigObject(rawConfig: Record<string, unknown>): {
   }
 
   for (const key of ["allow", "deny"] as const) {
-    const values = dedupeStrings(plugins[key] as unknown[] | undefined);
+    const values = dedupeStrings(plugins[key]);
     if (!values?.includes(LEGACY_PLUGIN_ID)) {
       continue;
     }
