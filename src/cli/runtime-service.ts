@@ -28,7 +28,8 @@ type ResolvedRuntimeService = {
 };
 
 function readPort(value: string | undefined): number {
-  const parsed = Number(value?.trim() || "5225");
+  const token = value?.trim() || "5225";
+  const parsed = /^[0-9]+$/.test(token) ? Number(token) : Number.NaN;
   if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) {
     throw new Error("port must be an integer between 1 and 65535");
   }

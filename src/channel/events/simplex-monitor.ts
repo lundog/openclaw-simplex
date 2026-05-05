@@ -88,6 +88,42 @@ export async function startSimplexMonitor(params: SimplexMonitorOpts): Promise<{
     },
   });
 
+  let initialConnectComplete = false;
+  let reconnecting: Promise<void> | null = null;
+  const reconnectAfterUnexpectedDisconnect = () => {
+    if (params.abortSignal.aborted || reconnecting) {
+      return;
+    }
+    statusSink?.({
+      connected: false,
+      running: true,
+      healthState: "starting",
+    });
+    const reconnect = connectSimplexWithRetry({
+      client,
+      runtime,
+      accountId: account.accountId,
+      abortSignal: params.abortSignal,
+    })
+      .catch((err) => {
+        if (!params.abortSignal.aborted) {
+          runtime.error?.(`[${account.accountId}] SimpleX reconnect failed: ${String(err)}`);
+          statusSink?.({
+            connected: false,
+            running: true,
+            lastError: err instanceof Error ? err.message : String(err),
+            healthState: "error",
+          });
+        }
+      })
+      .finally(() => {
+        if (reconnecting === reconnect) {
+          reconnecting = null;
+        }
+      });
+    reconnecting = reconnect;
+  };
+
   const stopConnectionState = client.onConnectionState((state) => {
     if (state.connected) {
       statusSink?.({
@@ -108,13 +144,9 @@ export async function startSimplexMonitor(params: SimplexMonitorOpts): Promise<{
       ...(state.error ? { lastError: state.error } : {}),
       healthState: state.expected ? "stopped" : "disconnected",
     });
-  });
-
-  await connectSimplexWithRetry({
-    client,
-    runtime,
-    accountId: account.accountId,
-    abortSignal: params.abortSignal,
+    if (!state.expected && initialConnectComplete) {
+      reconnectAfterUnexpectedDisconnect();
+    }
   });
 
   const stopListening = client.onEvent(async (event) => {
@@ -124,6 +156,14 @@ export async function startSimplexMonitor(params: SimplexMonitorOpts): Promise<{
       runtime.error?.(`[${account.accountId}] SimpleX event error: ${String(err)}`);
     }
   });
+
+  await connectSimplexWithRetry({
+    client,
+    runtime,
+    accountId: account.accountId,
+    abortSignal: params.abortSignal,
+  });
+  initialConnectComplete = true;
 
   params.abortSignal.addEventListener(
     "abort",

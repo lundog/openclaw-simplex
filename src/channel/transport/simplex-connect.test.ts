@@ -1,5 +1,5 @@
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { SimplexClient } from "../../simplex/runtime/client.js";
 import { connectSimplexWithRetry } from "./simplex-connect.js";
 
@@ -62,5 +62,35 @@ describe("connectSimplexWithRetry", () => {
         maxDelayMs: 0,
       })
     ).rejects.toThrow("runtime unavailable");
+  });
+
+  it("stops immediately when abort happens during a failed connect attempt", async () => {
+    const abortController = new AbortController();
+    const error = vi.fn();
+    const client = {
+      async connect() {
+        abortController.abort();
+        throw new Error("runtime unavailable");
+      },
+    } as unknown as SimplexClient;
+
+    await expect(
+      connectSimplexWithRetry({
+        client,
+        runtime: {
+          log() {},
+          error,
+          exit() {
+            throw new Error("unexpected exit");
+          },
+        } as unknown as RuntimeEnv,
+        accountId: "default",
+        abortSignal: abortController.signal,
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+      })
+    ).rejects.toThrow("SimpleX connect aborted");
+
+    expect(error).not.toHaveBeenCalled();
   });
 });

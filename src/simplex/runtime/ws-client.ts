@@ -152,10 +152,30 @@ export class SimplexWsClient {
   async close(): Promise<void> {
     this.rejectAllPending(new Error("SimpleX WS closed"));
     this.closing = true;
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    const ws = this.ws;
+    if (
+      ws &&
+      (ws.readyState === WebSocket.CONNECTING ||
+        ws.readyState === WebSocket.OPEN ||
+        ws.readyState === WebSocket.CLOSING)
+    ) {
       await new Promise<void>((resolve) => {
-        this.ws?.once("close", () => resolve());
-        this.ws?.close();
+        let settled = false;
+        const done = () => {
+          if (!settled) {
+            settled = true;
+            ws.off("close", done);
+            ws.off("error", done);
+            resolve();
+          }
+        };
+        ws.once("close", done);
+        ws.once("error", done);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        } else {
+          ws.terminate();
+        }
       });
     }
     this.ws = null;

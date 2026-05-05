@@ -79,7 +79,8 @@ function printJson(value: unknown): void {
 }
 
 function readPositiveInteger(value: string | undefined, label: string): number {
-  const parsed = Number(value?.trim() ?? "");
+  const token = value?.trim() ?? "";
+  const parsed = /^[0-9]+$/.test(token) ? Number(token) : Number.NaN;
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(`${label} must be a positive integer`);
   }

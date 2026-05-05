@@ -23,6 +23,9 @@ export async function connectSimplexWithRetry(params: {
       await params.client.connect();
       return;
     } catch (err) {
+      if (params.abortSignal.aborted) {
+        throw new Error("SimpleX connect aborted");
+      }
       if (attempt >= attempts) {
         throw err;
       }
