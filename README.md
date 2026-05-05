@@ -116,6 +116,7 @@ The key runtime boundary is explicit: OpenClaw does not own or supervise the `si
 - Direct and group messaging over SimpleX
 - Media send/receive support
 - Pairing approval, exec approval auth, and allowlist enforcement
+- Context visibility controls and OpenClaw security audit findings for broad access or unsafe WebSocket config
 - Invite link, address link, and QR generation
 - Shared `message` actions including `upload-file`, reactions, polls, edits, deletes, and group actions
 - Plugin tools and gateway methods for invite/address management, runtime diagnostics, contact requests, group links, and link onboarding
@@ -125,6 +126,12 @@ The key runtime boundary is explicit: OpenClaw does not own or supervise the `si
 ---
 
 ## Install
+
+Requirements:
+
+- OpenClaw `2026.5.4` or newer
+- Node.js `22` or newer in the OpenClaw plugin host
+- an external `simplex-chat` runtime reachable over WebSocket
 
 ### 1. Install SimpleX CLI (`simplex-chat`)
 
@@ -356,6 +363,7 @@ openclaw pairing list
 | Plugin not visible | Check `plugins.allow` and run `openclaw plugins list` |
 | Channel not starting | Verify `channels.openclaw-simplex.connection` exists and points to a running SimpleX runtime |
 | `Configured No` | Add explicit `channels.openclaw-simplex.connection` config; plugin defaults alone are not enough for startup |
+| `Running No` / `Connected No` | Check whether `simplex-chat` is reachable at `wsUrl`; the plugin reconnects after runtime restarts, but the endpoint still has to come back on the same address |
 | Inbound issues | Review `allowFrom`, `dmPolicy`, and group policy settings |
 | Media issues | Validate URLs and check size limits |
 

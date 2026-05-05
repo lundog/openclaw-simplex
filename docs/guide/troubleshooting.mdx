@@ -58,6 +58,16 @@ What to verify:
 
 For persistent startup, run <code>simplex-chat</code> under a host-managed service. See [Runtime Setup](/guide/runtime-setup).
 
+## Channel shows `Running No` or `Connected No`
+
+If the channel is configured but not connected, check the runtime boundary first:
+
+- <code>Configured Yes</code> means OpenClaw has enough channel config to attempt startup.
+- <code>Running No</code> means OpenClaw does not currently have a running channel runtime for that account.
+- <code>Connected No</code> means the plugin is not connected to the configured <code>simplex-chat</code> WebSocket endpoint.
+
+The plugin reconnects after an unexpected SimpleX WebSocket disconnect or runtime restart, but the restarted runtime must come back on the same configured endpoint. If the card stays disconnected, verify the service logs, port binding, and <code>connection.wsUrl</code>.
+
 ## Inbound messages dropped
 
 If messages arrive in SimpleX but the agent does not answer, check policy first:

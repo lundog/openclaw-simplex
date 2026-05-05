@@ -36,6 +36,7 @@ If <code>accounts</code> is not set, the root <code>channels.openclaw-simplex</c
       },
       "reactionLevel": "minimal",
       "dmPolicy": "pairing",
+      "contextVisibility": "allowlist",
       "allowFrom": ["*"],
       "groupPolicy": "allowlist",
       "groupAllowFrom": [],
@@ -68,6 +69,7 @@ If <code>accounts</code> is set, each account entry can override the shared root
           "name": "Ops",
           "enabled": true,
           "reactionLevel": "extensive",
+          "contextVisibility": "allowlist",
           "allowFrom": ["alice", "bob"],
           "connection": {
             "wsUrl": "ws://127.0.0.1:7777"
@@ -89,6 +91,7 @@ If <code>accounts</code> is set, each account entry can override the shared root
 | `actions.polls` | Enable or disable poll-style message actions for this channel/account. |
 | `reactionLevel` | Agent reaction behavior: `off` \| `ack` \| `minimal` \| `extensive`. |
 | `dmPolicy` | Direct-message policy: `open` \| `allowlist` \| `pairing` \| `disabled`. Effective default: `pairing`. |
+| `contextVisibility` | OpenClaw supplemental context visibility mode for the channel/account: `all` \| `allowlist` \| `allowlist_quote`. Use this when you want tighter control over what extra context the channel may expose to agent runs. |
 | `allowFrom` | DM allowlist entries. |
 | `dmHistoryLimit` | Optional per-DM history limit. |
 | `dms` | Per-DM config overrides using OpenClaw's shared DM config schema. |
@@ -123,7 +126,7 @@ This plugin talks to an already running external <code>simplex-chat</code> proce
 - <code>connection.allowUnsafeRemoteWs</code>
 - <code>connection.connectTimeoutMs</code>
 - <code>connection.autoAcceptFiles</code>
-- OpenClaw policy and UX settings such as <code>dmPolicy</code>, <code>allowFrom</code>, <code>groupPolicy</code>, <code>actions</code>, and <code>reactionLevel</code>
+- OpenClaw policy and UX settings such as <code>dmPolicy</code>, <code>allowFrom</code>, <code>groupPolicy</code>, <code>contextVisibility</code>, <code>actions</code>, and <code>reactionLevel</code>
 
 ### Intentionally not mirrored into plugin config
 

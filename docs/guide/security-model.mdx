@@ -53,6 +53,7 @@ There are three boundaries to keep straight:
 
 - Start with `dmPolicy: "pairing"` and `groupPolicy: "allowlist"`.
 - Keep `allowFrom`/`groupAllowFrom` narrow.
+- Set `contextVisibility` deliberately if supplemental context exposure should be restricted for this channel.
 - Prefer one-time invite links for onboarding and revoke address links when they are no longer needed.
 - Protect the SimpleX WebSocket endpoint, database, and file-transfer directories as sensitive local state.
-- Monitor status snapshots and logs for repeated authorization failures.
+- Monitor OpenClaw security audit findings, status snapshots, and logs for broad policies, unsafe WebSocket endpoints, or repeated authorization failures.

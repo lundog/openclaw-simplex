@@ -69,7 +69,8 @@ That separation keeps the channel implementation explicit, makes host-level supe
 
 ## Implementation surfaces
 
-- <code>src/channel/simplex-monitor.ts</code>: inbound SimpleX event parsing and message normalization.
-- <code>src/channel/simplex-send.ts</code> and <code>src/channel/simplex-outbound.ts</code>: outbound message/action translation.
-- <code>src/simplex/simplex-ws-client.ts</code> and <code>src/simplex/simplex-transport.ts</code>: WebSocket transport and command execution.
+- <code>src/channel/events/simplex-monitor.ts</code>: inbound SimpleX event monitoring, reconnect handling, parsing, and message normalization.
+- <code>src/channel/messaging/simplex-send.ts</code> and <code>src/channel/messaging/simplex-outbound.ts</code>: outbound message delivery and reply translation.
+- <code>src/actions/actions.ts</code>, <code>src/actions/message-actions.ts</code>, and <code>src/actions/group-actions.ts</code>: shared OpenClaw message actions such as upload-file, reactions, polls, edits, deletes, and group operations.
+- <code>src/simplex/runtime/ws-client.ts</code> and <code>src/simplex/runtime/transport.ts</code>: WebSocket transport and command execution.
 - <code>channels.openclaw-simplex</code> and <code>channels.openclaw-simplex.accounts</code>: shared and per-account runtime config.
