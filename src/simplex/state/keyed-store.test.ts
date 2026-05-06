@@ -1,3 +1,4 @@
+import type { PluginRuntime } from "openclaw/plugin-sdk/channel-core";
 import { describe, expect, it } from "vitest";
 import { openSimplexKeyedStore } from "./keyed-store.js";
 
@@ -30,5 +31,25 @@ describe("simplex keyed store fallback", () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
 
     await expect(store.lookup("a")).resolves.toBeUndefined();
+  });
+
+  it("falls back to memory when the host exposes but rejects keyed stores", async () => {
+    const namespace = `test-rejected-host-store-${Date.now()}-${Math.random()}`;
+    const store = openSimplexKeyedStore<string>({
+      runtime: {
+        state: {
+          resolveStateDir: () => "/tmp/openclaw-simplex-test",
+          openKeyedStore() {
+            throw new Error("openKeyedStore is only available for bundled plugins in this release");
+          },
+        },
+      } as unknown as PluginRuntime,
+      namespace,
+      maxEntries: 10,
+    });
+
+    await store.register("a", "one");
+
+    await expect(store.lookup("a")).resolves.toBe("one");
   });
 });

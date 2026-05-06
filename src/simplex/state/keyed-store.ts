@@ -63,11 +63,15 @@ export function openSimplexKeyedStore<T>(params: {
 }) {
   const state = params.runtime?.state;
   if (state?.openKeyedStore) {
-    return state.openKeyedStore<T>({
-      namespace: params.namespace,
-      maxEntries: params.maxEntries,
-      defaultTtlMs: params.defaultTtlMs,
-    });
+    try {
+      return state.openKeyedStore<T>({
+        namespace: params.namespace,
+        maxEntries: params.maxEntries,
+        defaultTtlMs: params.defaultTtlMs,
+      });
+    } catch {
+      return memoryStore<T>(params);
+    }
   }
   return memoryStore<T>(params);
 }
