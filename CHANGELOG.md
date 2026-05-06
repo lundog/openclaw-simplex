@@ -2,13 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [1.6.0] - 2026-05-06
 
 ### Changed
 
 - Kept the runtime path on the external `simplex-chat` WebSocket API and removed the direct Node runtime dependency experiment from this branch.
 - Restored the package posture to MIT-compatible runtime boundaries by avoiding direct `simplex-chat` package embedding.
 - Reworked the runtime adapter into a capability-oriented WebSocket client while preserving the newer services/actions/events architecture.
+- Raised the minimum supported OpenClaw version to `2026.5.4` and wired the latest compatible channel metadata, target-prefix parsing, context visibility, media-source params, and security audit hooks.
+- Updated README and docs for the current external-runtime architecture, generated runtime service install flow, reconnect behavior, Control UI limitations, and release requirements.
+
+### Added
+
+- Added SimpleX runtime service generation for `systemd --user`, `launchd`, and SysV init with interactive approval before writing files and printed follow-up supervisor commands.
+- Added security audit findings for broad SimpleX policies and unsafe WebSocket endpoints.
+- Added SimpleX link onboarding, contact-request, group-link, poll, reaction, edit/delete, media, and multi-account coverage across CLI, gateway methods, and message actions.
+
+### Fixed
+
+- Fixed external-plugin inbound event handling on OpenClaw hosts where keyed state stores are exposed but unavailable to external plugins.
+- Fixed reconnect behavior after the external `simplex-chat` WebSocket runtime disconnects and later comes back.
+- Fixed one-shot plugin CLI commands hanging after printing output by closing transient SimpleX WebSocket clients.
+- Fixed Control UI/runtime status drift by aligning status inspection with resolved SimpleX accounts and manifest channel config schema metadata.
+- Hardened WebSocket close/abort behavior, event subscription ordering, strict numeric CLI parsing, and service-manager detection.
 
 ## [1.5.0] - 2026-04-26
 
