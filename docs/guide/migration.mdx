@@ -12,10 +12,10 @@ Use this guide only if you previously configured or paired the plugin under the 
 - pairing approval commands now use `openclaw-simplex`
 
 <Info>
-  Gateway method names did not change. Programmatic invite flows still use <code>simplex.invite.create</code>, <code>simplex.invite.list</code>, and <code>simplex.invite.revoke</code>.
+  Gateway method names keep the <code>simplex.*</code> prefix. Programmatic invite flows still use <code>simplex.invite.create</code>, <code>simplex.invite.list</code>, and <code>simplex.invite.revoke</code>; newer runtime, request, group, and link-onboarding methods use the same prefix.
 </Info>
 
-The migration helper updates config keys and stored pairing/allowlist state so existing approvals can carry forward.
+The migration helper updates config keys and stored pairing/allowlist state so existing approvals can carry forward. It also normalizes legacy runtime fields by moving supported WebSocket fields under <code>connection</code> and removing unsupported managed-mode fields.
 
 <Steps>
   <Step title="Start the external SimpleX runtime">
@@ -41,7 +41,7 @@ The migration helper updates config keys and stored pairing/allowlist state so e
     openclaw simplex migrate
     ```
 
-    This rewrites the old <code>simplex</code> config keys and renames the related pairing/allowlist state files in the OpenClaw state directory.
+    This rewrites the old <code>simplex</code> config keys, normalizes legacy runtime fields for the external WebSocket runtime, and renames the related pairing/allowlist state files in the OpenClaw state directory.
   </Step>
 
   <Step title="Verify the new ids and pairing flow">
@@ -89,4 +89,6 @@ After migration, the channel should be configured under <code>openclaw-simplex</
 - `plugins.installs.simplex` -> `plugins.installs.openclaw-simplex`
 - `plugins.allow` / `plugins.deny`
 - `channels.simplex` -> `channels.openclaw-simplex`
+- legacy top-level runtime fields such as `wsUrl`, `url`, `host`, and `port` are moved under `connection`
+- unsupported managed-mode fields such as `managed`, `cliPath`, `token`, and `dbFilePrefix` are removed from root and per-account SimpleX config
 - OpenClaw pairing and allowlist state files under the OpenClaw state directory

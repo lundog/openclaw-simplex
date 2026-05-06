@@ -15,11 +15,27 @@ import {
   SIMPLEX_ACCOUNT_CONFIG_CLEAR_FIELDS,
   SimplexChannelConfigSchema,
 } from "../config/config-schema.js";
-import type { ResolvedSimplexAccount } from "../config/types.js";
 import { SIMPLEX_CHANNEL_ID } from "../constants.js";
-import type { SimplexWsClient } from "../simplex/simplex-ws-client.js";
-import { simplexApprovalAuth } from "./approval-auth.js";
-import { simplexCommandPolicy } from "./command-policy.js";
+import type { ResolvedSimplexAccount } from "../types/config.js";
+import {
+  listSimplexDirectoryGroups,
+  listSimplexDirectoryPeers,
+  listSimplexGroupMembers,
+  resolveSimplexSelf,
+  resolveSimplexTargets,
+} from "./contacts/simplex-directory.js";
+import { buildSimplexPairing } from "./contacts/simplex-pairing.js";
+import { simplexDoctor } from "./diagnostics/simplex-doctor.js";
+import { buildSimplexStatus } from "./diagnostics/simplex-status.js";
+import { buildSimplexGatewayRuntime } from "./gateway/simplex-gateway-runtime.js";
+import { buildSimplexHeartbeat } from "./gateway/simplex-heartbeat.js";
+import { buildSimplexOutbound } from "./messaging/simplex-outbound.js";
+import { simplexApprovalAuth } from "./security/approval-auth.js";
+import { simplexCommandPolicy } from "./security/command-policy.js";
+import {
+  collectSimplexSecurityAuditFindings,
+  formatSimplexAllowFrom,
+} from "./security/simplex-security.js";
 import { simplexSetupAdapter } from "./setup.js";
 import {
   formatSimplexTargetDisplay,
@@ -27,25 +43,10 @@ import {
   parseSimplexExplicitTarget,
   resolveSimplexGroupRequireMention,
   resolveSimplexGroupToolPolicy,
+  resolveSimplexRouteTarget,
   stripLeadingAt,
   stripSimplexPrefix,
-} from "./simplex-common.js";
-import {
-  listSimplexDirectoryGroups,
-  listSimplexDirectoryPeers,
-  listSimplexGroupMembers,
-  resolveSimplexSelf,
-  resolveSimplexTargets,
-} from "./simplex-directory.js";
-import { simplexDoctor } from "./simplex-doctor.js";
-import { buildSimplexGatewayRuntime } from "./simplex-gateway-runtime.js";
-import { buildSimplexHeartbeat } from "./simplex-heartbeat.js";
-import { buildSimplexOutbound } from "./simplex-outbound.js";
-import { buildSimplexPairing } from "./simplex-pairing.js";
-import { formatSimplexAllowFrom } from "./simplex-security.js";
-import { buildSimplexStatus } from "./simplex-status.js";
-
-const activeClients = new Map<string, SimplexWsClient>();
+} from "./shared/simplex-common.js";
 
 const resolveSimplexDmSecurityPolicy = createScopedDmSecurityResolver<ResolvedSimplexAccount>({
   channelKey: SIMPLEX_CHANNEL_ID,
@@ -65,11 +66,11 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
   meta: {
     id: SIMPLEX_CHANNEL_ID,
     label: "SimpleX",
-    selectionLabel: "SimpleX (WebSocket)",
+    selectionLabel: "SimpleX",
     detailLabel: "SimpleX Chat",
     docsPath: "/channels/openclaw-simplex",
     docsLabel: SIMPLEX_CHANNEL_ID,
-    blurb: "SimpleX Chat via external WebSocket API",
+    blurb: "SimpleX Chat via an external WebSocket runtime",
     aliases: ["simplex"],
     order: 95,
     systemImage: "link.badge.plus",
@@ -82,7 +83,7 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
     },
     quickstartAllowFrom: true,
   },
-  pairing: buildSimplexPairing(activeClients),
+  pairing: buildSimplexPairing(),
   capabilities: {
     chatTypes: ["direct", "group"],
     polls: true,
@@ -102,7 +103,6 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
       listAccountIds: (cfg) => listSimplexAccountIds(cfg),
       resolveAccount: resolveSimplexConfigAccount,
       defaultAccountId: (cfg) => resolveDefaultSimplexAccountId(cfg),
-      inspectAccount: (cfg, accountId) => resolveSimplexConfigAccount(cfg, accountId).config,
       clearBaseFields: SIMPLEX_ACCOUNT_CONFIG_CLEAR_FIELDS,
       preserveSectionOnDefaultDelete: true,
       resolveAllowFrom: (account) => account.config.allowFrom,
@@ -130,8 +130,16 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
     resolveGroupPolicy: (account) => account.config.groupPolicy,
   }),
   messaging: {
+    targetPrefixes: ["simplex"],
     normalizeTarget: (raw) => stripSimplexPrefix(raw),
     parseExplicitTarget: ({ raw }) => parseSimplexExplicitTarget(raw),
+    resolveSessionConversation: ({ kind, rawId }) => {
+      const target =
+        kind === "group" || kind === "channel"
+          ? resolveSimplexRouteTarget({ rawTarget: rawId })
+          : null;
+      return target ? { id: target.to, threadId: target.threadId ?? null } : null;
+    },
     inferTargetChatType: ({ to }) => inferSimplexTargetChatType(to),
     formatTargetDisplay: (params) => formatSimplexTargetDisplay(params),
     targetResolver: {
@@ -179,15 +187,32 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
         `- SimpleX groups: groupPolicy="open" allows any member to trigger the bot. Set channels.${SIMPLEX_CHANNEL_ID}.groupPolicy="allowlist" + channels.${SIMPLEX_CHANNEL_ID}.groupAllowFrom to restrict senders.`,
       ];
     },
+    collectAuditFindings: ({ account, cfg }) =>
+      collectSimplexSecurityAuditFindings({ account, cfg }),
   },
   groups: {
     resolveRequireMention: resolveSimplexGroupRequireMention,
     resolveToolPolicy: resolveSimplexGroupToolPolicy,
   },
-  gatewayMethods: ["simplex.invite.create", "simplex.invite.list", "simplex.invite.revoke"],
-  outbound: buildSimplexOutbound(activeClients),
-  heartbeat: buildSimplexHeartbeat(activeClients),
-  status: buildSimplexStatus(activeClients),
+  gatewayMethods: [
+    "simplex.invite.create",
+    "simplex.invite.list",
+    "simplex.invite.revoke",
+    "simplex.runtime.status",
+    "simplex.runtime.doctor",
+    "simplex.requests.list",
+    "simplex.requests.accept",
+    "simplex.requests.reject",
+    "simplex.groups.create",
+    "simplex.groups.link.create",
+    "simplex.groups.link.list",
+    "simplex.groups.link.revoke",
+    "simplex.connect.plan",
+    "simplex.connect",
+  ],
+  outbound: buildSimplexOutbound(),
+  heartbeat: buildSimplexHeartbeat(),
+  status: buildSimplexStatus(),
   doctor: simplexDoctor,
-  gateway: buildSimplexGatewayRuntime(activeClients),
+  gateway: buildSimplexGatewayRuntime(),
 };

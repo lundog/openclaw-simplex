@@ -56,19 +56,21 @@ describe("simplex accounts", () => {
     expect(resolveDefaultSimplexAccountId(cfg)).toBe("beta");
   });
 
-  it("merges connection config across base and account", () => {
+  it("merges WebSocket runtime config across base and account", () => {
     const cfg = {
       channels: {
         "openclaw-simplex": {
           enabled: true,
           connection: {
-            wsHost: "base-host",
-            wsPort: 4111,
+            wsHost: "127.0.0.1",
+            wsPort: 5225,
+            connectTimeoutMs: 4111,
           },
           accounts: {
             alpha: {
               connection: {
-                wsPort: 5225,
+                wsPort: 6225,
+                connectTimeoutMs: 5225,
               },
             },
           },
@@ -78,9 +80,8 @@ describe("simplex accounts", () => {
 
     const account = resolveSimplexAccount({ cfg, accountId: "alpha" });
     expect(account.mode).toBe("external");
-    expect(account.wsHost).toBe("base-host");
-    expect(account.wsPort).toBe(5225);
-    expect(account.wsUrl).toBe("ws://base-host:5225");
+    expect(account.wsUrl).toBe("ws://127.0.0.1:6225");
+    expect(account.config.connection?.connectTimeoutMs).toBe(5225);
     expect(account.enabled).toBe(true);
   });
 
@@ -112,34 +113,35 @@ describe("simplex accounts", () => {
     expect(resolveSimplexAccount({ cfg: cfg2, accountId: "alpha" }).enabled).toBe(false);
   });
 
-  it("uses explicit wsUrl for external mode configuration", () => {
+  it("uses explicit wsUrl for external runtime", () => {
     const cfg = {
       channels: {
         "openclaw-simplex": {
-          accounts: {
-            alpha: {
-              connection: {
-                wsHost: "127.0.0.1",
-                wsPort: 5225,
-              },
-            },
-            beta: {
-              connection: {
-                mode: "external",
-                wsUrl: "ws://example.test:9999",
-              },
-            },
+          connection: {
+            wsUrl: "ws://127.0.0.1:5225",
           },
         },
       },
     } as OpenClawConfig;
 
-    const alpha = resolveSimplexAccount({ cfg, accountId: "alpha" });
-    expect(alpha.wsUrl).toBe("ws://127.0.0.1:5225");
-    expect(alpha.configured).toBe(true);
+    const account = resolveSimplexAccount({ cfg, accountId: "default" });
+    expect(account.mode).toBe("external");
+    expect(account.configured).toBe(true);
+    expect(account.wsUrl).toBe("ws://127.0.0.1:5225");
+  });
 
-    const beta = resolveSimplexAccount({ cfg, accountId: "beta" });
-    expect(beta.configured).toBe(true);
+  it("does not treat an empty channel section as configured", () => {
+    const cfg = {
+      channels: {
+        "openclaw-simplex": {
+          enabled: true,
+        },
+      },
+    } as OpenClawConfig;
+
+    const account = resolveSimplexAccount({ cfg, accountId: "default" });
+    expect(account.configured).toBe(false);
+    expect(account.wsUrl).toBe("ws://127.0.0.1:5225");
   });
 
   it("treats missing channel config as unconfigured", () => {
@@ -149,19 +151,20 @@ describe("simplex accounts", () => {
     expect(resolveSimplexAccount({ cfg, accountId: "default" }).configured).toBe(false);
   });
 
-  it("treats explicit ws connection config as configured", () => {
+  it("supports nested connection config", () => {
     const cfg = {
       channels: {
         "openclaw-simplex": {
           connection: {
-            wsHost: "127.0.0.1",
-            wsPort: 5225,
+            wsHost: "localhost",
+            wsPort: 7001,
           },
         },
       },
     } as OpenClawConfig;
 
-    expect(hasMeaningfulSimplexConfig({ cfg })).toBe(true);
-    expect(resolveSimplexAccount({ cfg, accountId: "default" }).configured).toBe(true);
+    const account = resolveSimplexAccount({ cfg, accountId: "default" });
+    expect(account.configured).toBe(true);
+    expect(account.wsUrl).toBe("ws://localhost:7001");
   });
 });

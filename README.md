@@ -116,15 +116,22 @@ The key runtime boundary is explicit: OpenClaw does not own or supervise the `si
 - Direct and group messaging over SimpleX
 - Media send/receive support
 - Pairing approval, exec approval auth, and allowlist enforcement
+- Context visibility controls and OpenClaw security audit findings for broad access or unsafe WebSocket config
 - Invite link, address link, and QR generation
 - Shared `message` actions including `upload-file`, reactions, polls, edits, deletes, and group actions
-- Plugin tools and gateway methods for invite and group administration
+- Plugin tools and gateway methods for invite/address management, runtime diagnostics, contact requests, group links, and link onboarding
 - Runtime status reporting, command handling, heartbeat readiness, and Control UI configuration
 - External WebSocket runtime integration with explicit operator-managed lifecycle
 
 ---
 
 ## Install
+
+Requirements:
+
+- OpenClaw `2026.5.4` or newer
+- Node.js `22` or newer in the OpenClaw plugin host
+- an external `simplex-chat` runtime reachable over WebSocket
 
 ### 1. Install SimpleX CLI (`simplex-chat`)
 
@@ -206,7 +213,15 @@ This appends `openclaw-simplex` to the existing allowlist instead of replacing i
 }
 ```
 
-OpenClaw does not supervise `simplex-chat` for external plugins. If you want it to start automatically, run it as a host-managed user service such as `systemd --user` or `launchd`.
+OpenClaw does not supervise `simplex-chat` for external plugins. If you want it to start automatically, run it as a host-managed user service such as `systemd --user`, `launchd`, or SysV init.
+
+The plugin CLI can generate that service for the current host:
+
+```bash
+openclaw simplex runtime service install
+```
+
+It auto-detects user systemd on Linux, launchd on macOS, or SysV init as a Linux fallback, prints the target file and next commands, and asks for approval before writing the service file. It prints supervisor commands for you to run instead of executing them from the plugin, so install-time scanners do not see shell execution capability.
 
 Keep the split clear:
 
@@ -214,6 +229,8 @@ Keep the split clear:
 - `simplex-chat` CLI flags such as `--device-name`, `--files-folder`, `--temp-folder`, proxy settings, relay selection, and `--maintenance` belong in the external runtime service definition
 
 For full persistent runtime examples and recommended startup-flag placement: https://openclaw-simplex.mintlify.app/guide/runtime-setup
+
+Deployment templates also live in `examples/`, including a Docker sidecar compose file, a hardened systemd unit, and a Caddy TLS proxy example.
 
 ---
 
@@ -249,6 +266,17 @@ For automation and integrations, OpenClaw exposes gateway methods:
 - `simplex.invite.create`
 - `simplex.invite.list`
 - `simplex.invite.revoke`
+- `simplex.runtime.status`
+- `simplex.runtime.doctor`
+- `simplex.requests.list`
+- `simplex.requests.accept`
+- `simplex.requests.reject`
+- `simplex.groups.create`
+- `simplex.groups.link.create`
+- `simplex.groups.link.list`
+- `simplex.groups.link.revoke`
+- `simplex.connect.plan`
+- `simplex.connect`
 
 ---
 
@@ -274,13 +302,15 @@ This migrates:
 - `plugins.installs.simplex` → `plugins.installs.openclaw-simplex`
 - `plugins.allow` / `plugins.deny` entries from `simplex` → `openclaw-simplex`
 - `channels.simplex` → `channels.openclaw-simplex`
+- legacy top-level runtime fields such as `wsUrl`, `url`, `host`, and `port` are moved under `connection`
+- unsupported managed-mode fields such as `managed`, `cliPath`, `token`, and `dbFilePrefix` are removed from SimpleX config
 - OpenClaw pairing and allowlist state files under the OpenClaw state directory
 
 Current note:
 
 - The current plugin id is `openclaw-simplex`
 - The current channel id is `openclaw-simplex`
-- Gateway method names remain `simplex.invite.*`
+- Gateway method names keep the `simplex.*` prefix
 
 ---
 
@@ -310,6 +340,11 @@ openclaw pairing list
 - `simplex.invite.create`
 - `simplex.invite.list`
 - `simplex.invite.revoke`
+- `simplex.runtime.status`
+- `simplex.runtime.doctor`
+- `simplex.requests.*`
+- `simplex.groups.*`
+- `simplex.connect.*`
 
 **Plugin tools:**
 - `simplex_invite_create`
@@ -328,6 +363,7 @@ openclaw pairing list
 | Plugin not visible | Check `plugins.allow` and run `openclaw plugins list` |
 | Channel not starting | Verify `channels.openclaw-simplex.connection` exists and points to a running SimpleX runtime |
 | `Configured No` | Add explicit `channels.openclaw-simplex.connection` config; plugin defaults alone are not enough for startup |
+| `Running No` / `Connected No` | Check whether `simplex-chat` is reachable at `wsUrl`; the plugin reconnects after runtime restarts, but the endpoint still has to come back on the same address |
 | Inbound issues | Review `allowFrom`, `dmPolicy`, and group policy settings |
 | Media issues | Validate URLs and check size limits |
 

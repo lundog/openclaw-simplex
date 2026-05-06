@@ -20,6 +20,47 @@ const accountScopedUiHints = withAccountScope({
     label: "Enabled",
     help: "Disable an account without deleting its SimpleX configuration.",
   },
+  connection: {
+    label: "WebSocket Runtime",
+    help: "Connection settings for the external simplex-chat WebSocket runtime.",
+    tags: ["transport"],
+  },
+  "connection.wsUrl": {
+    label: "WebSocket URL",
+    help: "WebSocket URL for the external simplex-chat runtime.",
+    placeholder: "ws://127.0.0.1:5225",
+    tags: ["transport"],
+  },
+  "connection.wsHost": {
+    label: "WebSocket Host",
+    help: "Host used to build the runtime WebSocket URL when wsUrl is omitted.",
+    placeholder: "127.0.0.1",
+    advanced: true,
+  },
+  "connection.wsPort": {
+    label: "WebSocket Port",
+    help: "Port used to build the runtime WebSocket URL when wsUrl is omitted.",
+    placeholder: "5225",
+    advanced: true,
+  },
+  "connection.allowUnsafeRemoteWs": {
+    label: "Allow Unsafe Remote WS",
+    help: "Allow plaintext ws:// connections to non-loopback hosts only when protected by a private network, firewall, or TLS proxy.",
+    advanced: true,
+    tags: ["transport", "security"],
+  },
+  "connection.autoAcceptFiles": {
+    label: "Auto Accept Files",
+    help: "Automatically accept incoming file transfers from the SimpleX runtime.",
+    advanced: true,
+    tags: ["media"],
+  },
+  "connection.connectTimeoutMs": {
+    label: "Connect Timeout (ms)",
+    help: "Runtime connection/start timeout in milliseconds.",
+    advanced: true,
+    tags: ["transport"],
+  },
   mediaMaxMb: {
     label: "Max Media Size (MB)",
     help: "Optional media size cap for files sent through this SimpleX account.",
@@ -58,6 +99,12 @@ const accountScopedUiHints = withAccountScope({
     label: "DM History Limit",
     help: "Optional direct-message transcript window to retain for reply context.",
     advanced: true,
+  },
+  contextVisibility: {
+    label: "Context Visibility",
+    help: "Controls whether supplemental chat context is visible broadly or only for allowlisted senders.",
+    advanced: true,
+    tags: ["security"],
   },
   allowFrom: {
     label: "DM Allowlist",
@@ -114,53 +161,12 @@ const accountScopedUiHints = withAccountScope({
     help: "Optional per-group tool policy override for this SimpleX group.",
     advanced: true,
   },
-  connection: {
-    label: "Connection",
-    help: "Transport settings for the external simplex-chat WebSocket runtime.",
-  },
-  "connection.mode": {
-    label: "Connection Mode",
-    help: "SimpleX currently supports only the external runtime mode in this plugin.",
-    advanced: true,
-  },
-  "connection.wsUrl": {
-    label: "WebSocket URL",
-    help: "WebSocket URL for the running simplex-chat API, for example ws://127.0.0.1:5225.",
-    placeholder: "ws://127.0.0.1:5225",
-    tags: ["transport"],
-  },
-  "connection.wsHost": {
-    label: "WebSocket Host",
-    help: "Host override used when wsUrl is not set explicitly.",
-    placeholder: "127.0.0.1",
-    advanced: true,
-    tags: ["transport"],
-  },
-  "connection.wsPort": {
-    label: "WebSocket Port",
-    help: "Port override used when wsUrl is not set explicitly.",
-    placeholder: "5225",
-    advanced: true,
-    tags: ["transport"],
-  },
-  "connection.autoAcceptFiles": {
-    label: "Auto Accept Files",
-    help: "Automatically accept incoming file transfers from the SimpleX runtime.",
-    advanced: true,
-    tags: ["media"],
-  },
-  "connection.connectTimeoutMs": {
-    label: "Connect Timeout (ms)",
-    help: "WebSocket connection timeout in milliseconds.",
-    advanced: true,
-    tags: ["transport"],
-  },
 });
 
 export const simplexChannelConfigUiHints = {
   "": {
     label: "SimpleX",
-    help: "Connect OpenClaw to a separately running simplex-chat WebSocket runtime. Reachability starts from SimpleX invite or address links, while OpenClaw still applies pairing, allowlists, and group policy.",
+    help: "Connect OpenClaw to SimpleX through an external simplex-chat WebSocket runtime. Reachability starts from SimpleX invite or address links, while OpenClaw still applies pairing, allowlists, and group policy.",
   },
   defaultAccount: {
     label: "Default Account",

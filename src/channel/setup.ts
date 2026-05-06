@@ -30,33 +30,29 @@ export const simplexSetupAdapter: ChannelSetupAdapter = {
       name,
     });
   },
-  applyAccountConfig: ({ cfg, accountId, input }) => {
-    const wsUrl = input.url?.trim() || input.httpUrl?.trim();
+  applyAccountConfig: ({ cfg, accountId }) => {
     return applySetupAccountConfigPatch({
       cfg,
       channelKey: SIMPLEX_CHANNEL_ID,
       accountId,
       patch: {
         enabled: true,
-        ...(wsUrl
-          ? {
-              connection: {
-                mode: "external",
-                wsUrl,
-              },
-            }
-          : {}),
+        connection: {
+          mode: "external",
+          wsHost: "127.0.0.1",
+          wsPort: 5225,
+        },
       },
     });
   },
   validateInput: ({ input }) => {
     const cliPath = input.cliPath?.trim();
     if (cliPath) {
-      return "SimpleX managed mode is no longer supported; run simplex-chat separately and provide a ws:// or wss:// URL instead.";
+      return "SimpleX CLI path is not configured in OpenClaw. Start simplex-chat separately with its WebSocket API enabled.";
     }
-    const wsUrl = input.url?.trim() || input.httpUrl?.trim();
-    if (wsUrl && !/^wss?:\/\//i.test(wsUrl)) {
-      return "SimpleX external URL must start with ws:// or wss://";
+    const runtimeUrl = input.url?.trim() || input.httpUrl?.trim();
+    if (runtimeUrl && !runtimeUrl.startsWith("ws://") && !runtimeUrl.startsWith("wss://")) {
+      return "SimpleX runtime URL must be a ws:// or wss:// WebSocket URL.";
     }
     return null;
   },

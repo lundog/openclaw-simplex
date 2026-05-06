@@ -1,12 +1,8 @@
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk/account-id";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import { SIMPLEX_CHANNEL_ID } from "../constants.js";
+import type { ResolvedSimplexAccount, SimplexConnectionConfig } from "../types/config.js";
 import type { SimplexAccountConfig, SimplexChannelConfig } from "./config-schema.js";
-import type {
-  ResolvedSimplexAccount,
-  SimplexConnectionConfig,
-  SimplexConnectionMode,
-} from "./types.js";
 
 const DEFAULT_WS_HOST = "127.0.0.1";
 const DEFAULT_WS_PORT = 5225;
@@ -114,17 +110,15 @@ export function resolveSimplexAccount(params: {
   const baseEnabled = params.cfg.channels?.[SIMPLEX_CHANNEL_ID]?.enabled !== false;
   const enabled = baseEnabled && merged.enabled !== false;
   const connection = merged.connection ?? {};
-  const mode: SimplexConnectionMode = "external";
   const wsUrl = resolveWsUrl(connection);
   const wsHost = resolveWsHost(connection);
   const wsPort = resolveWsPort(connection);
-  const configured = hasMeaningfulConfig;
   return {
     accountId,
     enabled,
     name: merged.name?.trim() || undefined,
-    configured,
-    mode,
+    configured: hasMeaningfulConfig,
+    mode: "external",
     wsUrl,
     wsHost,
     wsPort,

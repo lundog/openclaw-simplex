@@ -3,6 +3,7 @@ import {
   BlockStreamingCoalesceSchema,
   buildCatchallMultiAccountChannelSchema,
   buildChannelConfigSchema,
+  ContextVisibilityModeSchema,
   DmConfigSchema,
   DmPolicySchema,
   GroupPolicySchema,
@@ -34,6 +35,7 @@ const SimplexConnectionSchema = z
     wsUrl: z.string().url().optional(),
     wsHost: z.string().optional(),
     wsPort: z.number().int().positive().optional(),
+    allowUnsafeRemoteWs: z.boolean().optional(),
     autoAcceptFiles: z.boolean().optional(),
     connectTimeoutMs: z.number().int().positive().optional(),
   })
@@ -49,6 +51,7 @@ export const SimplexAccountConfigSchema = z
     reactionLevel: SimplexReactionLevelSchema,
     dmPolicy: DmPolicySchema.optional(),
     dmHistoryLimit: z.number().int().min(0).optional(),
+    contextVisibility: ContextVisibilityModeSchema.optional(),
     dms: z.record(z.string(), DmConfigSchema.optional()).optional(),
     allowFrom: SimplexAllowFromListSchema,
     blockStreaming: z.boolean().optional(),

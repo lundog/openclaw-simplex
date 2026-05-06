@@ -5,6 +5,7 @@ import type {
 } from "openclaw/plugin-sdk/channel-contract";
 
 export const SIMPLEX_SUPPORTED_ACTIONS = new Set<ChannelMessageActionName>([
+  "poll",
   "upload-file",
   "react",
   "edit",
@@ -15,19 +16,6 @@ export const SIMPLEX_SUPPORTED_ACTIONS = new Set<ChannelMessageActionName>([
   "removeParticipant",
   "leaveGroup",
 ]);
-
-export const SIMPLEX_MESSAGE_TOOL_ACTIONS = [
-  "send",
-  "upload-file",
-  "react",
-  "edit",
-  "delete",
-  "unsend",
-  "renameGroup",
-  "addParticipant",
-  "removeParticipant",
-  "leaveGroup",
-] as const satisfies readonly ChannelMessageActionName[];
 
 export function buildSimplexMessageToolSchema(): ChannelMessageToolSchemaContribution {
   return {
@@ -140,6 +128,26 @@ export function buildSimplexMessageToolSchema(): ChannelMessageToolSchemaContrib
       asVoice: Type.Optional(
         Type.Boolean({
           description: "Alias for audioAsVoice.",
+        })
+      ),
+      pollQuestion: Type.Optional(
+        Type.String({
+          description: "Poll question for the poll action.",
+        })
+      ),
+      pollOption: Type.Optional(
+        Type.Union([Type.String(), Type.Array(Type.String())], {
+          description: "Poll option label or list of labels.",
+        })
+      ),
+      pollMulti: Type.Optional(
+        Type.Boolean({
+          description: "Allow multiple poll selections.",
+        })
+      ),
+      pollDurationHours: Type.Optional(
+        Type.Integer({
+          description: "Optional poll window in hours.",
         })
       ),
       displayName: Type.Optional(

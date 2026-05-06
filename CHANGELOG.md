@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- Kept the runtime path on the external `simplex-chat` WebSocket API and removed the direct Node runtime dependency experiment from this branch.
+- Restored the package posture to MIT-compatible runtime boundaries by avoiding direct `simplex-chat` package embedding.
+- Reworked the runtime adapter into a capability-oriented WebSocket client while preserving the newer services/actions/events architecture.
+
 ## [1.5.0] - 2026-04-26
 
 ### Changed

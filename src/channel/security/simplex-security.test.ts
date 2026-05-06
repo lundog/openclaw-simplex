@@ -1,0 +1,189 @@
+import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
+import { describe, expect, it } from "vitest";
+import type { ResolvedSimplexAccount } from "../../types/config.js";
+import {
+  collectSimplexSecurityAuditFindings,
+  formatSimplexAllowFrom,
+  isSimplexAllowlisted,
+  parseSimplexAllowlistEntry,
+  resolveSimplexAllowFrom,
+  resolveSimplexDmPolicy,
+} from "./simplex-security.js";
+
+describe("simplex allowlist", () => {
+  it("parses wildcard allowlist entries", () => {
+    expect(parseSimplexAllowlistEntry("*")).toEqual({ kind: "any", value: "*" });
+  });
+
+  it("parses group prefixes", () => {
+    expect(parseSimplexAllowlistEntry("group:Team")).toEqual({
+      kind: "group",
+      value: "team",
+    });
+    expect(parseSimplexAllowlistEntry("simplex:#MyGroup")).toEqual({
+      kind: "group",
+      value: "mygroup",
+    });
+  });
+
+  it("parses sender prefixes", () => {
+    expect(parseSimplexAllowlistEntry("@Alice")).toEqual({
+      kind: "sender",
+      value: "alice",
+    });
+    expect(parseSimplexAllowlistEntry("contact:Bob")).toEqual({
+      kind: "sender",
+      value: "bob",
+    });
+  });
+
+  it("normalizes bare entries as senders", () => {
+    expect(parseSimplexAllowlistEntry("Simplex:Carol")).toEqual({
+      kind: "sender",
+      value: "carol",
+    });
+  });
+
+  it("ignores empty entries", () => {
+    expect(parseSimplexAllowlistEntry("")).toBeNull();
+  });
+
+  it("resolves allowlist per-account first", () => {
+    const cfg = {
+      channels: {
+        "openclaw-simplex": {
+          allowFrom: ["base"],
+          accounts: {
+            alpha: {
+              allowFrom: ["account"],
+            },
+          },
+        },
+      },
+    } as OpenClawConfig;
+    expect(resolveSimplexAllowFrom({ cfg, accountId: "alpha" })).toEqual(["account"]);
+    expect(resolveSimplexAllowFrom({ cfg, accountId: "beta" })).toEqual(["base"]);
+  });
+
+  it("uses the configured default account id when accountId is omitted", () => {
+    const cfg = {
+      channels: {
+        "openclaw-simplex": {
+          allowFrom: ["base"],
+          accounts: {
+            beta: {
+              allowFrom: ["beta-only"],
+              connection: { wsUrl: "ws://127.0.0.1:5225" },
+            },
+          },
+        },
+      },
+    } as OpenClawConfig;
+
+    expect(resolveSimplexAllowFrom({ cfg })).toEqual(["beta-only"]);
+  });
+
+  it("formats allowlist entries as normalized lowercase values", () => {
+    const formatted = formatSimplexAllowFrom([" simplex:@Alice ", "group:Team "]);
+    expect(formatted).toEqual(["@alice", "group:team"]);
+  });
+
+  it("resolves dm policy with account override", () => {
+    const cfg = {
+      channels: {
+        "openclaw-simplex": {
+          dmPolicy: "allowlist",
+          accounts: {
+            alpha: {
+              dmPolicy: "open",
+            },
+          },
+        },
+      },
+    } as OpenClawConfig;
+    const account: ResolvedSimplexAccount = {
+      accountId: "alpha",
+      enabled: true,
+      configured: true,
+      mode: "external",
+      wsUrl: "ws://127.0.0.1:5225",
+      wsHost: "127.0.0.1",
+      wsPort: 5225,
+      config: { markdown: {}, allowFrom: [], groupAllowFrom: [], dmPolicy: "open" },
+    };
+    const result = resolveSimplexDmPolicy({
+      cfg,
+      account,
+    });
+    expect(result.policy).toBe("open");
+  });
+
+  it("matches allowlisted senders and groups", () => {
+    expect(
+      isSimplexAllowlisted({
+        allowFrom: ["*"],
+      })
+    ).toBe(true);
+
+    expect(
+      isSimplexAllowlisted({
+        allowFrom: ["@alice"],
+        senderId: "Alice",
+      })
+    ).toBe(true);
+    expect(
+      isSimplexAllowlisted({
+        allowFrom: ["12345"],
+        senderId: "simplex:@12345",
+      })
+    ).toBe(true);
+
+    expect(
+      isSimplexAllowlisted({
+        allowFrom: ["group:Team"],
+        groupId: "team",
+        allowGroupId: false,
+      })
+    ).toBe(false);
+
+    expect(
+      isSimplexAllowlisted({
+        allowFrom: ["group:Team"],
+        groupId: "TEAM",
+        allowGroupId: true,
+      })
+    ).toBe(true);
+  });
+
+  it("audits open policies and unsafe websocket endpoints", () => {
+    const findings = collectSimplexSecurityAuditFindings({
+      cfg: { channels: {} } as OpenClawConfig,
+      account: {
+        accountId: "alpha",
+        enabled: true,
+        configured: true,
+        mode: "external",
+        wsUrl: "ws://example.com:5225?token=secret",
+        wsHost: "example.com",
+        wsPort: 5225,
+        config: {
+          allowFrom: [],
+          groupAllowFrom: [],
+          dmPolicy: "open",
+          groupPolicy: "open",
+          connection: {
+            wsUrl: "ws://example.com:5225?token=secret",
+          },
+        },
+      },
+    });
+
+    expect(findings.map((finding) => finding.checkId)).toEqual([
+      "simplex.dm-policy-open",
+      "simplex.group-policy-open",
+      "simplex.ws-endpoint-blocked",
+    ]);
+    expect(findings[2]?.detail).toContain("?redacted");
+    expect(findings[2]?.detail).not.toContain("secret");
+  });
+});
