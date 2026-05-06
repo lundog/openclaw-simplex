@@ -6,7 +6,6 @@ type SharedSimplexClientKey = `${string}|${number}`;
 
 const activeSimplexClients = new Map<string, SimplexClient>();
 const activeSimplexClientsByKey = new Map<SharedSimplexClientKey, SimplexClient>();
-const sharedSimplexClients = new Map<SharedSimplexClientKey, SimplexClient>();
 
 function sharedClientKey(account: ResolvedSimplexAccount): SharedSimplexClientKey {
   const timeoutMs = account.config.connection?.connectTimeoutMs ?? 15_000;
@@ -18,11 +17,6 @@ export async function registerActiveSimplexClient(
   client: SimplexClient
 ): Promise<void> {
   const key = sharedClientKey(account);
-  const shared = sharedSimplexClients.get(key);
-  if (shared && shared !== client) {
-    sharedSimplexClients.delete(key);
-    await shared.close().catch(() => undefined);
-  }
   activeSimplexClients.set(account.accountId, client);
   activeSimplexClientsByKey.set(key, client);
 }
@@ -48,20 +42,6 @@ export function hasActiveSimplexClient(accountId: string): boolean {
   return activeSimplexClients.has(accountId);
 }
 
-function getSharedSimplexClient(params: {
-  account: ResolvedSimplexAccount;
-  logger?: SimplexLogger;
-}): SimplexClient {
-  const key = sharedClientKey(params.account);
-  const existing = sharedSimplexClients.get(key);
-  if (existing) {
-    return existing;
-  }
-  const created = new SimplexClient({ account: params.account, logger: params.logger });
-  sharedSimplexClients.set(key, created);
-  return created;
-}
-
 export async function withSimplexClient<T>(params: {
   account: ResolvedSimplexAccount;
   logger?: SimplexLogger;
@@ -75,7 +55,11 @@ export async function withSimplexClient<T>(params: {
   if (sharedActiveClient) {
     return await params.run(sharedActiveClient);
   }
-  const client = getSharedSimplexClient(params);
-  await client.connect();
-  return await params.run(client);
+  const client = new SimplexClient({ account: params.account, logger: params.logger });
+  try {
+    await client.connect();
+    return await params.run(client);
+  } finally {
+    await client.close().catch(() => undefined);
+  }
 }
