@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2026-05-30
+
+### Added
+
+- Added opt-in SimpleX native live assistant replies for text responses. When `streaming.nativeTransport` is enabled, partial assistant text is sent with `live=on`, updated in place, and finalized on the same SimpleX chat item.
+- Added account streaming controls for native live replies: `streaming.throttleMs`, `streaming.minChars`, and `streaming.wordBoundary`.
+- Added outbound message TTL configuration through `messageTtlSeconds`, including support across normal sends, media sends, polls, action sends, and monitor replies.
+- Added runtime user/profile, contact verification, group moderation, and file receive/cancel operations to the CLI and gateway method surfaces.
+- Added status and doctor visibility for live-message configuration, TTL, file policy, runtime counts, and WebSocket transport posture.
+- Added experimental `channel:<id>` / `!<id>` target parsing behind `experimentalChannels`.
+
+### Changed
+
+- Raised the minimum supported OpenClaw version to `2026.5.27` and aligned package compatibility metadata with the newer channel reply and delivery surfaces.
+- Refreshed the static plugin manifest schema so the Control UI can render the new SimpleX account configuration fields.
+
+### Fixed
+
+- Kept SimpleX live reply failures on a safe fallback path: if live updates fail or the payload includes media, the plugin falls back to normal message delivery instead of retrying ambiguous sends.
+
 ## [1.6.0] - 2026-05-06
 
 ### Changed
