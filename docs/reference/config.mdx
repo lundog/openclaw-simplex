@@ -41,6 +41,17 @@ If <code>accounts</code> is not set, the root <code>channels.openclaw-simplex</c
       "groupPolicy": "allowlist",
       "groupAllowFrom": [],
       "mediaMaxMb": 5,
+      "messageTtlSeconds": 86400,
+      "streaming": {
+        "nativeTransport": false,
+        "throttleMs": 2000,
+        "minChars": 24,
+        "wordBoundary": true
+      },
+      "filePolicy": {
+        "autoAccept": true,
+        "maxSizeMb": 5
+      },
       "connection": {
         "wsUrl": "ws://127.0.0.1:5225",
         "connectTimeoutMs": 15000
@@ -103,6 +114,14 @@ If <code>accounts</code> is set, each account entry can override the shared root
 | `markdown` | Markdown rendering config from OpenClaw's shared channel schema. |
 | `blockStreaming` | If true, buffer the response instead of streaming partial output. |
 | `blockStreamingCoalesce` | Optional response coalescing behavior for blocked streaming. |
+| `streaming.nativeTransport` | Enables SimpleX-native live assistant text replies. Disabled by default so intermediate assistant text is not exposed unless explicitly enabled. |
+| `streaming.throttleMs` | Minimum delay between SimpleX live message edits. Default: `2000`. |
+| `streaming.minChars` | Minimum added characters before a SimpleX live message update is sent. Default: `24`. |
+| `streaming.wordBoundary` | Prefer live updates at word boundaries. Default: `true`. |
+| `messageTtlSeconds` | Optional SimpleX message time-to-live applied to outbound text, media, poll, action, and reply sends for this account. |
+| `filePolicy.autoAccept` | Preferred file auto-accept setting. If omitted, the legacy `connection.autoAcceptFiles` setting is used. |
+| `filePolicy.maxSizeMb` | Operator-facing receive-side file size policy for diagnostics. |
+| `experimentalChannels` | Enables capability-gated parsing for SimpleX channel-like targets such as `channel:<id>` and `!<id>`. This does not claim full SimpleX Channels support. |
 | `connection.mode` | Connection mode. Only `external` is supported. |
 | `connection.wsUrl` | WebSocket URL for the running `simplex-chat` WebSocket API. If set, this wins over `wsHost`/`wsPort`. |
 | `connection.wsHost` | Optional host fallback when `wsUrl` is not set. Default: `127.0.0.1`. |
@@ -116,6 +135,10 @@ If <code>accounts</code> is set, each account entry can override the shared root
   A channel/account is considered configured only when <code>connection.wsUrl</code>, <code>connection.wsHost</code>, or <code>connection.wsPort</code> is present. If none of those are set, OpenClaw will not treat the channel as startup-ready.
 </Note>
 
+<Note>
+  SimpleX-native live replies apply only to assistant text previews and final text. Media, polls, and explicit message actions continue to use normal SimpleX sends. If a live update fails or a payload contains media, the plugin falls back to normal delivery.
+</Note>
+
 ## What belongs in plugin config vs runtime startup
 
 This plugin talks to an already running external <code>simplex-chat</code> process. That means the OpenClaw config only models settings the plugin can truthfully use at runtime.
@@ -126,6 +149,8 @@ This plugin talks to an already running external <code>simplex-chat</code> proce
 - <code>connection.allowUnsafeRemoteWs</code>
 - <code>connection.connectTimeoutMs</code>
 - <code>connection.autoAcceptFiles</code>
+- <code>streaming.nativeTransport</code>, <code>streaming.throttleMs</code>, <code>streaming.minChars</code>, and <code>streaming.wordBoundary</code>
+- <code>messageTtlSeconds</code> and <code>filePolicy</code>
 - OpenClaw policy and UX settings such as <code>dmPolicy</code>, <code>allowFrom</code>, <code>groupPolicy</code>, <code>contextVisibility</code>, <code>actions</code>, and <code>reactionLevel</code>
 
 ### Intentionally not mirrored into plugin config

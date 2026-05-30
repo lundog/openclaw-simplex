@@ -80,15 +80,15 @@ describe("simplex config schema manifest", () => {
     expect(channelManifest?.description).toBe(packageJson.openclaw?.channel?.blurb);
   });
 
-  it("advertises the 2026.5.4 compatibility and channel selection metadata", () => {
-    expect(packageJson.openclaw?.install?.minHostVersion).toBe(">=2026.5.4");
+  it("advertises the 2026.5.27 compatibility and channel selection metadata", () => {
+    expect(packageJson.openclaw?.install?.minHostVersion).toBe(">=2026.5.27");
     expect(packageJson.openclaw?.compat).toEqual({
-      pluginApi: ">=2026.5.4",
-      minGatewayVersion: "2026.5.4",
+      pluginApi: ">=2026.5.27",
+      minGatewayVersion: "2026.5.27",
     });
     expect(packageJson.openclaw?.build).toEqual({
-      openclawVersion: "2026.5.4",
-      pluginSdkVersion: "2026.5.4",
+      openclawVersion: "2026.5.27",
+      pluginSdkVersion: "2026.5.27",
     });
     expect(packageJson.openclaw?.channel).toMatchObject({
       detailLabel: "SimpleX Chat",

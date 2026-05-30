@@ -42,6 +42,7 @@ async function sendSimplexPayload(params: {
   client: SimplexClient;
   chatRef: string;
   cfg: OpenClawConfig;
+  account: ResolvedSimplexAccount;
   accountId: string;
   payload: {
     text?: string;
@@ -70,8 +71,9 @@ async function sendSimplexPayload(params: {
   return await sendSimplexComposedMessages({
     chatRef: params.chatRef,
     composedMessages,
-    send: (chatRef, messages) =>
-      params.client.sendMessages({ chatRef, composedMessages: messages }),
+    ttl: params.account.config.messageTtlSeconds,
+    send: ({ chatRef, composedMessages: messages, ttl }) =>
+      params.client.sendMessages({ chatRef, composedMessages: messages, ttl }),
   });
 }
 
@@ -299,6 +301,7 @@ async function handleSimplexEvent(params: {
           client,
           chatRef,
           cfg,
+          account,
           accountId: account.accountId,
           payload: {
             text,
@@ -333,6 +336,8 @@ async function handleSimplexEvent(params: {
 
     const pending: PendingInboundFile = {
       fileId: typeof fileId === "number" ? fileId : -1,
+      chatRef,
+      replyToId: currentMessageId,
       ctxPayload,
       storePath,
       sessionKey: route.sessionKey,
@@ -345,6 +350,7 @@ async function handleSimplexEvent(params: {
           client,
           chatRef,
           cfg,
+          account,
           accountId: account.accountId,
           payload: { ...payload, replyToId: currentMessageId },
         });

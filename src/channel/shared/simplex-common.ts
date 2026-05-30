@@ -43,6 +43,9 @@ function readPrefixedSimplexTarget(raw: string): { value: string; kind: SimplexT
   if (lower.startsWith("group:")) {
     return { value: strippedProvider.slice("group:".length).trim(), kind: "group" };
   }
+  if (lower.startsWith("channel:")) {
+    return { value: strippedProvider.slice("channel:".length).trim(), kind: "channel" };
+  }
   if (lower.startsWith("contact:") || lower.startsWith("user:") || lower.startsWith("member:")) {
     return {
       value: strippedProvider.slice(strippedProvider.indexOf(":") + 1).trim(),
@@ -65,11 +68,18 @@ export function parseSimplexExplicitTarget(raw: string): SimplexExplicitTarget |
     const id = value.slice(1).trim();
     return id ? { to: `@${id}`, chatType: "direct" } : null;
   }
+  if (value.startsWith("!")) {
+    const id = value.slice(1).trim();
+    return id ? { to: `!${id}`, chatType: "channel" } : null;
+  }
   if (kind === "group") {
     return { to: `#${value}`, chatType: "group" };
   }
   if (kind === "direct") {
     return { to: `@${value}`, chatType: "direct" };
+  }
+  if (kind === "channel") {
+    return { to: value.startsWith("!") ? value : `!${value}`, chatType: "channel" };
   }
   return null;
 }
@@ -82,7 +92,7 @@ export function resolveSimplexRouteTarget(params: {
   to: string;
   accountId?: string;
   threadId?: string;
-  chatType?: "direct" | "group";
+  chatType?: "direct" | "group" | "channel";
 } | null {
   const route = resolveChannelRouteTargetWithParser({
     channel: "openclaw-simplex",
@@ -98,7 +108,8 @@ export function resolveSimplexRouteTarget(params: {
     accountId:
       params.accountId ?? (typeof route.accountId === "string" ? route.accountId : undefined),
     threadId: route.threadId === undefined ? undefined : String(route.threadId),
-    chatType: route.chatType === "group" ? "group" : "direct",
+    chatType:
+      route.chatType === "group" ? "group" : route.chatType === "channel" ? "channel" : "direct",
   };
 }
 
@@ -127,6 +138,9 @@ export function formatSimplexTargetDisplay(params: {
   }
   if (params.kind === "group") {
     return value.startsWith("#") ? value : `#${value}`;
+  }
+  if (params.kind === "channel") {
+    return value.startsWith("!") ? value : `!${value}`;
   }
   if (params.kind === "user") {
     return value.startsWith("@") ? value : `@${value}`;

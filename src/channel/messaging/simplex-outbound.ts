@@ -1,4 +1,5 @@
 import type { ChannelPlugin } from "openclaw/plugin-sdk/channel-core";
+import { createAttachedChannelResultAdapter } from "openclaw/plugin-sdk/channel-send-result";
 import { renderMessagePresentationFallbackText } from "openclaw/plugin-sdk/interactive-runtime";
 import { normalizePollInput } from "openclaw/plugin-sdk/poll-runtime";
 import { resolveSimplexAccount } from "../../config/accounts.js";
@@ -82,61 +83,66 @@ export function buildSimplexOutbound(): NonNullable<
         channel: SIMPLEX_CHANNEL_ID,
         messageId: result.messageId ?? "unknown",
         chatId: to,
+        meta: {
+          receipt: result.receipt,
+          ttl: account.config.messageTtlSeconds ?? null,
+        },
       };
     },
-    sendText: async ({ cfg, to, text, accountId, replyToId }) => {
-      const account = resolveSimplexAccount({ cfg, accountId });
-      assertSimplexOutboundAccountReady(account);
-      const result = await buildAndSendSimplexMessages({
-        cfg,
-        account,
-        chatRef: to,
-        text,
-        replyToId,
-      });
-      return {
-        channel: SIMPLEX_CHANNEL_ID,
-        messageId: result.messageId ?? "unknown",
-        chatId: to,
-      };
-    },
-    sendMedia: async ({ cfg, to, text, mediaUrl, accountId, replyToId }) => {
-      if (!mediaUrl) {
-        return { channel: SIMPLEX_CHANNEL_ID, messageId: "empty", chatId: to };
-      }
-      const account = resolveSimplexAccount({ cfg, accountId });
-      assertSimplexOutboundAccountReady(account);
-      const result = await buildAndSendSimplexMessages({
-        cfg,
-        account,
-        chatRef: to,
-        text,
-        mediaUrl,
-        replyToId,
-      });
-      return {
-        channel: SIMPLEX_CHANNEL_ID,
-        messageId: result.messageId ?? "unknown",
-        chatId: to,
-        meta: { mediaUrl },
-      };
-    },
-    sendPoll: async ({ cfg, to, poll, accountId }) => {
-      const account = resolveSimplexAccount({ cfg, accountId });
-      assertSimplexOutboundAccountReady(account);
-      const normalized = normalizePollInput(poll);
-      const text = renderSimplexPollText(normalized);
-      const result = await buildAndSendSimplexMessages({
-        cfg,
-        account,
-        chatRef: to,
-        text,
-      });
-      return {
-        channel: SIMPLEX_CHANNEL_ID,
-        messageId: result.messageId ?? "unknown",
-        chatId: to,
-      };
-    },
+    ...createAttachedChannelResultAdapter({
+      channel: SIMPLEX_CHANNEL_ID,
+      sendText: async ({ cfg, to, text, accountId, replyToId }) => {
+        const account = resolveSimplexAccount({ cfg, accountId });
+        assertSimplexOutboundAccountReady(account);
+        const result = await buildAndSendSimplexMessages({
+          cfg,
+          account,
+          chatRef: to,
+          text,
+          replyToId,
+        });
+        return {
+          messageId: result.messageId ?? "unknown",
+          chatId: to,
+          meta: { receipt: result.receipt, ttl: account.config.messageTtlSeconds ?? null },
+        };
+      },
+      sendMedia: async ({ cfg, to, text, mediaUrl, accountId, replyToId }) => {
+        if (!mediaUrl) {
+          return { messageId: "empty", chatId: to };
+        }
+        const account = resolveSimplexAccount({ cfg, accountId });
+        assertSimplexOutboundAccountReady(account);
+        const result = await buildAndSendSimplexMessages({
+          cfg,
+          account,
+          chatRef: to,
+          text,
+          mediaUrl,
+          replyToId,
+        });
+        return {
+          messageId: result.messageId ?? "unknown",
+          chatId: to,
+          meta: {
+            mediaUrl,
+            receipt: result.receipt,
+            ttl: account.config.messageTtlSeconds ?? null,
+          },
+        };
+      },
+      sendPoll: async ({ cfg, to, poll, accountId }) => {
+        const account = resolveSimplexAccount({ cfg, accountId });
+        assertSimplexOutboundAccountReady(account);
+        const normalized = normalizePollInput(poll);
+        const text = renderSimplexPollText(normalized);
+        const result = await buildAndSendSimplexMessages({ cfg, account, chatRef: to, text });
+        return {
+          messageId: result.messageId ?? "unknown",
+          chatId: to,
+          meta: { receipt: result.receipt, ttl: account.config.messageTtlSeconds ?? null },
+        };
+      },
+    }),
   };
 }

@@ -99,7 +99,7 @@ describe("simplex outbound presentation support", () => {
         text: expect.stringContaining("Reply with the option number or label."),
       })
     );
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       channel: "openclaw-simplex",
       messageId: "poll-1",
       chatId: "@alice",

@@ -1,5 +1,5 @@
 import type { ChannelPlugin } from "openclaw/plugin-sdk/channel-core";
-import { createAccountStatusSink, waitUntilAbort } from "openclaw/plugin-sdk/channel-runtime";
+import { createAccountStatusSink, waitUntilAbort } from "openclaw/plugin-sdk/channel-outbound";
 import {
   getActiveSimplexClient,
   registerActiveSimplexClient,

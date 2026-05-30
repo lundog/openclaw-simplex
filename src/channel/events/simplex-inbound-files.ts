@@ -3,6 +3,10 @@ import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import type { SimplexClient } from "../../simplex/runtime/client.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
+import {
+  createSimplexLiveReplyController,
+  type SimplexLiveReplyPayload,
+} from "../messaging/simplex-send.js";
 import { getSimplexRuntime } from "../runtime.js";
 
 const PENDING_FILE_TIMEOUT_MS = 90_000;
@@ -17,6 +21,8 @@ type SimplexReplyPayload = {
 
 export type PendingInboundFile = {
   fileId: number;
+  chatRef: string;
+  replyToId?: string | number | null;
   ctxPayload: Record<string, unknown>;
   storePath: string;
   sessionKey: string;
@@ -41,7 +47,8 @@ export async function requestFileDownload(params: {
   runtime: RuntimeEnv;
 }): Promise<boolean> {
   const { fileId, account, client, runtime } = params;
-  const autoAccept = account.config.connection?.autoAcceptFiles !== false;
+  const autoAccept =
+    account.config.filePolicy?.autoAccept ?? account.config.connection?.autoAcceptFiles !== false;
   if (!autoAccept) {
     return false;
   }
@@ -110,6 +117,13 @@ export async function dispatchInbound(params: {
 }): Promise<void> {
   const { pending, mediaPath, mediaType } = params;
   const core = getSimplexRuntime();
+  const liveReply = createSimplexLiveReplyController({
+    cfg: pending.cfg,
+    account: pending.account,
+    chatRef: pending.chatRef,
+    replyToId: pending.replyToId,
+    logError: (message) => pending.runtime.error?.(`[${pending.account.accountId}] ${message}`),
+  });
   const ctxPayload = {
     ...pending.ctxPayload,
     MediaPath: mediaPath,
@@ -132,7 +146,7 @@ export async function dispatchInbound(params: {
     ctx: ctxPayload,
     cfg: pending.cfg,
     dispatcherOptions: {
-      deliver: async (payload) => {
+      deliver: async (payload, info) => {
         const hasMedia =
           Boolean(payload.mediaUrl) ||
           (Array.isArray(payload.mediaUrls) && payload.mediaUrls.length > 0);
@@ -145,6 +159,22 @@ export async function dispatchInbound(params: {
           );
           return;
         }
+        const livePayload: SimplexLiveReplyPayload = {
+          text: payload.text,
+          mediaUrl: payload.mediaUrl,
+          mediaUrls: payload.mediaUrls,
+          audioAsVoice: payload.audioAsVoice,
+          replyToId: pending.replyToId,
+        };
+        if (info.kind === "final") {
+          if (await liveReply.finalize(livePayload)) {
+            pending.statusSink?.({ lastOutboundAt: Date.now() });
+            return;
+          }
+        } else if (await liveReply.updatePartial(livePayload)) {
+          pending.statusSink?.({ lastOutboundAt: Date.now() });
+          return;
+        }
         await pending.sendPayload(payload);
         pending.statusSink?.({ lastOutboundAt: Date.now() });
       },
@@ -155,10 +185,20 @@ export async function dispatchInbound(params: {
       },
     },
     replyOptions: {
-      disableBlockStreaming:
-        typeof pending.account.config.blockStreaming === "boolean"
+      disableBlockStreaming: liveReply.enabled
+        ? true
+        : typeof pending.account.config.blockStreaming === "boolean"
           ? !pending.account.config.blockStreaming
           : undefined,
+      onPartialReply: liveReply.enabled
+        ? async (payload) => {
+            await liveReply.updatePartial({
+              text: payload.text,
+              mediaUrls: payload.mediaUrls,
+              replyToId: pending.replyToId,
+            });
+          }
+        : undefined,
     },
   });
 }

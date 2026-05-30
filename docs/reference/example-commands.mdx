@@ -64,6 +64,13 @@ Show the active SimpleX runtime state:
 openclaw simplex runtime status
 ```
 
+List runtime users and show the active user:
+
+```bash
+openclaw simplex runtime users
+openclaw simplex runtime active-user
+```
+
 Run the higher-level diagnostic summary:
 
 ```bash
@@ -150,6 +157,15 @@ With multiple accounts:
 openclaw simplex requests list --account-id support
 ```
 
+## Verification
+
+Show or check SimpleX contact verification metadata when supported by the runtime:
+
+```bash
+openclaw simplex verification show --contact-id <id>
+openclaw simplex verification check --contact-id <id> --code "<code>"
+```
+
 ## Groups and group links
 
 Create a SimpleX group:
@@ -174,6 +190,22 @@ Revoke the current group invite link:
 
 ```bash
 openclaw simplex groups link revoke --group-id <id>
+```
+
+Moderate a group member when supported by the runtime:
+
+```bash
+openclaw simplex groups member block --group-id <id> --member-id <id>
+openclaw simplex groups member delete-messages --group-id <id> --member-id <id>
+```
+
+## Files
+
+Receive or cancel a SimpleX file transfer:
+
+```bash
+openclaw simplex files receive --file-id <id>
+openclaw simplex files cancel --file-id <id>
 ```
 
 ## Link onboarding
@@ -231,4 +263,4 @@ Run these inside the <code>simplex-chat</code> console if you want to manage lin
 
 ## Gateway method names
 
-For programmatic automation, the plugin exposes gateway methods for one-time invite and SimpleX address management, runtime diagnostics, contact-request review, group-link lifecycle, and SimpleX link onboarding. See [Gateway Methods](/reference/gateway-methods) for request and response shapes.
+For programmatic automation, the plugin exposes gateway methods for one-time invite and SimpleX address management, runtime diagnostics, runtime users, verification, contact-request review, group-link lifecycle, moderation, file controls, and SimpleX link onboarding. See [Gateway Methods](/reference/gateway-methods) for request and response shapes.

@@ -22,6 +22,16 @@ import {
   revokeSimplexInvite,
 } from "../simplex/services/invites.js";
 import {
+  blockSimplexGroupMember,
+  cancelSimplexFile,
+  checkSimplexContactVerification,
+  deleteSimplexGroupMemberMessages,
+  listSimplexRuntimeUsers,
+  receiveSimplexFile,
+  showSimplexContactVerification,
+  showSimplexRuntimeActiveUser,
+} from "../simplex/services/runtime-operations.js";
+import {
   doctorSimplexRuntime,
   getSimplexRuntimeStatus,
 } from "../simplex/services/runtime-status.js";
@@ -177,6 +187,75 @@ export function registerSimplexGatewayMethods(api: OpenClawPluginApi): void {
   );
 
   api.registerGatewayMethod(
+    "simplex.runtime.users",
+    async ({ params, respond }) => {
+      try {
+        respond(
+          true,
+          await listSimplexRuntimeUsers({ cfg: api.config, accountId: readAccountId(params) })
+        );
+      } catch (err) {
+        respond(false, undefined, unavailable("SimpleX runtime users failed", err));
+      }
+    },
+    { scope: "operator.read" }
+  );
+
+  api.registerGatewayMethod(
+    "simplex.runtime.activeUser",
+    async ({ params, respond }) => {
+      try {
+        respond(
+          true,
+          await showSimplexRuntimeActiveUser({ cfg: api.config, accountId: readAccountId(params) })
+        );
+      } catch (err) {
+        respond(false, undefined, unavailable("SimpleX runtime active user failed", err));
+      }
+    },
+    { scope: "operator.read" }
+  );
+
+  api.registerGatewayMethod(
+    "simplex.verification.show",
+    async ({ params, respond }) => {
+      try {
+        respond(
+          true,
+          await showSimplexContactVerification({
+            cfg: api.config,
+            accountId: readAccountId(params),
+            contactId: params?.contactId,
+          })
+        );
+      } catch (err) {
+        respond(false, undefined, unavailable("SimpleX verification show failed", err));
+      }
+    },
+    { scope: "operator.read" }
+  );
+
+  api.registerGatewayMethod(
+    "simplex.verification.check",
+    async ({ params, respond }) => {
+      try {
+        respond(
+          true,
+          await checkSimplexContactVerification({
+            cfg: api.config,
+            accountId: readAccountId(params),
+            contactId: params?.contactId,
+            code: typeof params?.code === "string" ? params.code : null,
+          })
+        );
+      } catch (err) {
+        respond(false, undefined, unavailable("SimpleX verification check failed", err));
+      }
+    },
+    { scope: "operator.admin" }
+  );
+
+  api.registerGatewayMethod(
     "simplex.requests.list",
     async ({ params, respond }) => {
       try {
@@ -305,6 +384,84 @@ export function registerSimplexGatewayMethods(api: OpenClawPluginApi): void {
         );
       } catch (err) {
         respond(false, undefined, unavailable("SimpleX group link revoke failed", err));
+      }
+    },
+    { scope: "operator.admin" }
+  );
+
+  api.registerGatewayMethod(
+    "simplex.groups.member.block",
+    async ({ params, respond }) => {
+      try {
+        respond(
+          true,
+          await blockSimplexGroupMember({
+            cfg: api.config,
+            accountId: readAccountId(params),
+            groupId: params?.groupId,
+            memberId: params?.memberId,
+          })
+        );
+      } catch (err) {
+        respond(false, undefined, unavailable("SimpleX group member block failed", err));
+      }
+    },
+    { scope: "operator.admin" }
+  );
+
+  api.registerGatewayMethod(
+    "simplex.groups.member.deleteMessages",
+    async ({ params, respond }) => {
+      try {
+        respond(
+          true,
+          await deleteSimplexGroupMemberMessages({
+            cfg: api.config,
+            accountId: readAccountId(params),
+            groupId: params?.groupId,
+            memberId: params?.memberId,
+          })
+        );
+      } catch (err) {
+        respond(false, undefined, unavailable("SimpleX group member delete messages failed", err));
+      }
+    },
+    { scope: "operator.admin" }
+  );
+
+  api.registerGatewayMethod(
+    "simplex.files.receive",
+    async ({ params, respond }) => {
+      try {
+        respond(
+          true,
+          await receiveSimplexFile({
+            cfg: api.config,
+            accountId: readAccountId(params),
+            fileId: params?.fileId,
+          })
+        );
+      } catch (err) {
+        respond(false, undefined, unavailable("SimpleX file receive failed", err));
+      }
+    },
+    { scope: "operator.admin" }
+  );
+
+  api.registerGatewayMethod(
+    "simplex.files.cancel",
+    async ({ params, respond }) => {
+      try {
+        respond(
+          true,
+          await cancelSimplexFile({
+            cfg: api.config,
+            accountId: readAccountId(params),
+            fileId: params?.fileId,
+          })
+        );
+      } catch (err) {
+        respond(false, undefined, unavailable("SimpleX file cancel failed", err));
       }
     },
     { scope: "operator.admin" }

@@ -4,6 +4,7 @@ import {
   resolveRuntimeAccount,
   withActiveSimplexUser,
 } from "../runtime/account.js";
+import { describeSimplexWsEndpointSecurity } from "../runtime/security.js";
 import { getActiveSimplexClient } from "../runtime/transport.js";
 
 export type SimplexRuntimeStatusResult = {
@@ -27,6 +28,22 @@ export type SimplexRuntimeStatusResult = {
     groups: number;
     users: number;
   };
+  capabilities: {
+    liveMessages: boolean;
+    ttlConfigured: boolean;
+    moderation: "probe-required";
+    verification: "probe-required";
+    experimentalChannels: boolean;
+  };
+  security: {
+    transportWarnings: string[];
+    transportBlocked: boolean;
+  };
+  filePolicy: {
+    autoAccept: boolean;
+    maxSizeMb: number | null;
+    mediaMaxMb: number | null;
+  };
 };
 
 export async function getSimplexRuntimeStatus(params: {
@@ -36,6 +53,11 @@ export async function getSimplexRuntimeStatus(params: {
   const account = resolveRuntimeAccount(params.cfg, params.accountId);
   const activeClient = getActiveSimplexClient(account.accountId);
   const connection = activeClient?.getConnectionState();
+  const security = describeSimplexWsEndpointSecurity(account.wsUrl, {
+    allowUnsafeRemoteWs: account.config.connection?.allowUnsafeRemoteWs,
+  });
+  const fileAutoAccept =
+    account.config.filePolicy?.autoAccept ?? account.config.connection?.autoAcceptFiles ?? false;
   const details = await withActiveSimplexUser({
     account,
     run: async (userId, client) => {
@@ -71,6 +93,22 @@ export async function getSimplexRuntimeStatus(params: {
       groups: details.groups.length,
       users: details.users.length,
     },
+    capabilities: {
+      liveMessages: account.config.streaming?.nativeTransport === true,
+      ttlConfigured: typeof account.config.messageTtlSeconds === "number",
+      moderation: "probe-required",
+      verification: "probe-required",
+      experimentalChannels: account.config.experimentalChannels === true,
+    },
+    security: {
+      transportWarnings: security.warnings,
+      transportBlocked: security.blockingWarnings.length > 0,
+    },
+    filePolicy: {
+      autoAccept: fileAutoAccept,
+      maxSizeMb: account.config.filePolicy?.maxSizeMb ?? null,
+      mediaMaxMb: account.config.mediaMaxMb ?? null,
+    },
   };
 }
 
@@ -88,6 +126,12 @@ export async function doctorSimplexRuntime(params: {
   }
   if (status.runtime.lastError) {
     issues.push(`SimpleX runtime error: ${status.runtime.lastError}`);
+  }
+  for (const warning of status.security.transportWarnings) {
+    issues.push(`SimpleX transport warning: ${warning}`);
+  }
+  if (status.security.transportBlocked) {
+    issues.push("SimpleX WebSocket endpoint is blocked by transport security policy.");
   }
   return { ...status, ok: issues.length === 0, issues };
 }

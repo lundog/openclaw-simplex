@@ -1,12 +1,12 @@
 ---
 title: Gateway Methods
-description: API reference for OpenClaw SimpleX gateway RPC methods used for runtime status, one-time invite links, SimpleX addresses, contact requests, group links, and operator-controlled SimpleX onboarding.
+description: API reference for OpenClaw SimpleX gateway RPC methods used for runtime status, invites, addresses, verification, contact requests, groups, files, and operator-controlled SimpleX onboarding.
 ---
 
-The plugin registers these gateway RPC methods for runtime diagnostics, one-time invite and SimpleX address automation, contact-request review, group-link lifecycle, and operator-controlled SimpleX link onboarding.
+The plugin registers these gateway RPC methods for runtime diagnostics, one-time invite and SimpleX address automation, runtime user visibility, verification, contact-request review, group-link lifecycle, moderation, file transfer controls, and operator-controlled SimpleX link onboarding.
 
 <Info>
-  For day-to-day one-time invite and SimpleX address workflows, prefer the plugin CLI commands in [Example Commands](/reference/example-commands). Use these gateway methods when another system needs programmatic access to runtime status, contact-request review, group-link lifecycle, or link onboarding.
+  For day-to-day one-time invite and SimpleX address workflows, prefer the plugin CLI commands in [Example Commands](/reference/example-commands). Use these gateway methods when another system needs programmatic access to runtime status, runtime users, verification, contact-request review, group-link lifecycle, moderation, file controls, or link onboarding.
 </Info>
 
 ## Prerequisites and behavior
@@ -112,6 +112,9 @@ Response highlights:
 - `activeUser`: active SimpleX user profile, if available
 - `address`: current SimpleX address metadata, if available
 - `counts`: contact, group, and user counts
+- `capabilities`: configured live-message, TTL, moderation, verification, and experimental channel posture
+- `filePolicy`: configured file auto-accept and size policy visibility
+- `security`: WebSocket endpoint warnings and blocking posture
 - `runtime`: active client, connection state, and latest runtime error
 - `runtimeVersion`: installed `simplex-chat` runtime version, if available
 - `wsUrl`: configured WebSocket URL
@@ -134,6 +137,13 @@ Example response shape:
     "contacts": 1,
     "groups": 0,
     "users": 1
+  },
+  "capabilities": {
+    "liveMessages": true,
+    "ttlConfigured": false,
+    "moderation": "probe-required",
+    "verification": "probe-required",
+    "experimentalChannels": false
   }
 }
 ```
@@ -141,6 +151,48 @@ Example response shape:
 ## `simplex.runtime.doctor`
 
 Return the same runtime status plus `ok` and `issues` fields for operator diagnostics.
+
+## `simplex.runtime.users`
+
+List SimpleX runtime users for the selected account.
+
+Request params:
+
+```json
+{
+  "accountId": "default"
+}
+```
+
+Response shape:
+
+```json
+{
+  "accountId": "default",
+  "users": []
+}
+```
+
+## `simplex.runtime.activeUser`
+
+Return the active SimpleX runtime user for the selected account.
+
+## `simplex.verification.*`
+
+Expose contact verification commands when the connected <code>simplex-chat</code> runtime supports them. Older runtimes can return an <code>unsupported</code> response with the runtime error text.
+
+- `simplex.verification.show`: show verification metadata for `contactId`
+- `simplex.verification.check`: check verification metadata or a provided `code` for `contactId`
+
+Example request:
+
+```json
+{
+  "accountId": "default",
+  "contactId": 123,
+  "code": "optional-code"
+}
+```
 
 ## `simplex.requests.*`
 
@@ -167,6 +219,8 @@ Create SimpleX groups and manage group invite links through the configured Simpl
 - `simplex.groups.link.create`: create a group link for `groupId` and optional `role`
 - `simplex.groups.link.list`: return the current group link plus QR data URL
 - `simplex.groups.link.revoke`: delete the current group link
+- `simplex.groups.member.block`: block or remove a member when the runtime supports it
+- `simplex.groups.member.deleteMessages`: remove a member's group messages when the runtime supports it
 
 Example group link request:
 
@@ -187,6 +241,32 @@ Example response shape:
   "role": "member",
   "link": "simplex://...",
   "qrDataUrl": "data:image/png;base64,..."
+}
+```
+
+Example moderation request:
+
+```json
+{
+  "accountId": "default",
+  "groupId": 42,
+  "memberId": 77
+}
+```
+
+## `simplex.files.*`
+
+Control SimpleX file transfers through the active WebSocket runtime.
+
+- `simplex.files.receive`: receive a pending file by `fileId`
+- `simplex.files.cancel`: cancel a pending or active file transfer by `fileId`
+
+Example request:
+
+```json
+{
+  "accountId": "default",
+  "fileId": 123
 }
 ```
 

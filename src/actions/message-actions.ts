@@ -47,6 +47,7 @@ async function sendActionComposedMessages(params: {
   account: ResolvedSimplexAccount;
   chatRef: string;
   composedMessages: SimplexComposedMessage[];
+  ttl?: number;
 }): Promise<{ messageId?: string }> {
   if (params.composedMessages.length === 0) {
     return {};
@@ -57,6 +58,7 @@ async function sendActionComposedMessages(params: {
       client.sendMessages({
         chatRef: params.chatRef,
         composedMessages: params.composedMessages,
+        ttl: params.ttl ?? params.account.config.messageTtlSeconds,
       }),
   });
   return { messageId: resolveSimplexChatItemId(chatItems[0]) };
@@ -70,6 +72,10 @@ export async function executeSimplexMessageAction(params: {
   toolParams: SimplexActionParams;
 }): Promise<ToolResult | null> {
   const { action, cfg, account, chatRef, toolParams } = params;
+  const ttl =
+    readNumberParam(toolParams, "messageTtlSeconds", { integer: true }) ??
+    readNumberParam(toolParams, "ttl", { integer: true }) ??
+    account.config.messageTtlSeconds;
 
   if (action === "poll") {
     const question =
@@ -96,7 +102,7 @@ export async function executeSimplexMessageAction(params: {
       accountId: account.accountId,
       text: renderSimplexPollText(normalized),
     });
-    const result = await sendActionComposedMessages({ account, chatRef, composedMessages });
+    const result = await sendActionComposedMessages({ account, chatRef, composedMessages, ttl });
     return jsonResult({ ok: true, poll: true, to: chatRef, messageId: result.messageId ?? null });
   }
 
@@ -123,7 +129,7 @@ export async function executeSimplexMessageAction(params: {
       mediaUrl,
       audioAsVoice,
     });
-    const result = await sendActionComposedMessages({ account, chatRef, composedMessages });
+    const result = await sendActionComposedMessages({ account, chatRef, composedMessages, ttl });
     return jsonResult({
       ok: true,
       uploaded: true,

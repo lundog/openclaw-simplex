@@ -22,6 +22,16 @@ import {
   revokeSimplexInvite,
 } from "../simplex/services/invites.js";
 import {
+  blockSimplexGroupMember,
+  cancelSimplexFile,
+  checkSimplexContactVerification,
+  deleteSimplexGroupMemberMessages,
+  listSimplexRuntimeUsers,
+  receiveSimplexFile,
+  showSimplexContactVerification,
+  showSimplexRuntimeActiveUser,
+} from "../simplex/services/runtime-operations.js";
+import {
   doctorSimplexRuntime,
   getSimplexRuntimeStatus,
 } from "../simplex/services/runtime-status.js";
@@ -62,6 +72,20 @@ type GroupLinkCliOptions = AccountCliOptions & {
 
 type ConnectCliOptions = AccountCliOptions & {
   link?: string;
+};
+
+type ContactVerificationCliOptions = AccountCliOptions & {
+  contactId?: string;
+  code?: string;
+};
+
+type GroupMemberCliOptions = AccountCliOptions & {
+  groupId?: string;
+  memberId?: string;
+};
+
+type FileCliOptions = AccountCliOptions & {
+  fileId?: string;
 };
 
 function readOptionalAccountId(value?: string): string | null {
@@ -180,6 +204,54 @@ async function runRuntimeDoctorCli(api: OpenClawPluginApi, opts: AccountCliOptio
   );
 }
 
+async function runRuntimeUsersCli(api: OpenClawPluginApi, opts: AccountCliOptions): Promise<void> {
+  printJson(
+    await listSimplexRuntimeUsers({
+      cfg: api.config,
+      accountId: readOptionalAccountId(opts.accountId),
+    })
+  );
+}
+
+async function runRuntimeActiveUserCli(
+  api: OpenClawPluginApi,
+  opts: AccountCliOptions
+): Promise<void> {
+  printJson(
+    await showSimplexRuntimeActiveUser({
+      cfg: api.config,
+      accountId: readOptionalAccountId(opts.accountId),
+    })
+  );
+}
+
+async function runVerificationShowCli(
+  api: OpenClawPluginApi,
+  opts: ContactVerificationCliOptions
+): Promise<void> {
+  printJson(
+    await showSimplexContactVerification({
+      cfg: api.config,
+      accountId: readOptionalAccountId(opts.accountId),
+      contactId: readPositiveInteger(opts.contactId, "contactId"),
+    })
+  );
+}
+
+async function runVerificationCheckCli(
+  api: OpenClawPluginApi,
+  opts: ContactVerificationCliOptions
+): Promise<void> {
+  printJson(
+    await checkSimplexContactVerification({
+      cfg: api.config,
+      accountId: readOptionalAccountId(opts.accountId),
+      contactId: readPositiveInteger(opts.contactId, "contactId"),
+      code: opts.code,
+    })
+  );
+}
+
 async function runRequestsListCli(api: OpenClawPluginApi, opts: AccountCliOptions): Promise<void> {
   printJson(
     await listSimplexContactRequests({
@@ -270,6 +342,54 @@ async function runGroupLinkRevokeCli(
       cfg: api.config,
       accountId: readOptionalAccountId(opts.accountId),
       groupId: readPositiveInteger(opts.groupId, "groupId"),
+    })
+  );
+}
+
+async function runGroupMemberBlockCli(
+  api: OpenClawPluginApi,
+  opts: GroupMemberCliOptions
+): Promise<void> {
+  printJson(
+    await blockSimplexGroupMember({
+      cfg: api.config,
+      accountId: readOptionalAccountId(opts.accountId),
+      groupId: readPositiveInteger(opts.groupId, "groupId"),
+      memberId: readPositiveInteger(opts.memberId, "memberId"),
+    })
+  );
+}
+
+async function runGroupMemberDeleteMessagesCli(
+  api: OpenClawPluginApi,
+  opts: GroupMemberCliOptions
+): Promise<void> {
+  printJson(
+    await deleteSimplexGroupMemberMessages({
+      cfg: api.config,
+      accountId: readOptionalAccountId(opts.accountId),
+      groupId: readPositiveInteger(opts.groupId, "groupId"),
+      memberId: readPositiveInteger(opts.memberId, "memberId"),
+    })
+  );
+}
+
+async function runFileReceiveCli(api: OpenClawPluginApi, opts: FileCliOptions): Promise<void> {
+  printJson(
+    await receiveSimplexFile({
+      cfg: api.config,
+      accountId: readOptionalAccountId(opts.accountId),
+      fileId: readPositiveInteger(opts.fileId, "fileId"),
+    })
+  );
+}
+
+async function runFileCancelCli(api: OpenClawPluginApi, opts: FileCliOptions): Promise<void> {
+  printJson(
+    await cancelSimplexFile({
+      cfg: api.config,
+      accountId: readOptionalAccountId(opts.accountId),
+      fileId: readPositiveInteger(opts.fileId, "fileId"),
     })
   );
 }
@@ -391,6 +511,22 @@ export function registerSimplexCliMetadata(api: OpenClawPluginApi): void {
           await runRuntimeDoctorCli(api, opts);
         });
 
+      runtime
+        .command("users")
+        .description("List SimpleX runtime users")
+        .option("--account-id <accountId>", "Use a specific SimpleX account")
+        .action(async (opts: AccountCliOptions) => {
+          await runRuntimeUsersCli(api, opts);
+        });
+
+      runtime
+        .command("active-user")
+        .description("Show the active SimpleX runtime user")
+        .option("--account-id <accountId>", "Use a specific SimpleX account")
+        .action(async (opts: AccountCliOptions) => {
+          await runRuntimeActiveUserCli(api, opts);
+        });
+
       const runtimeService = runtime
         .command("service")
         .description("Manage a host service for the external simplex-chat runtime");
@@ -441,6 +577,29 @@ export function registerSimplexCliMetadata(api: OpenClawPluginApi): void {
           await runRequestsRejectCli(api, opts);
         });
 
+      const verification = command
+        .command("verification")
+        .description("SimpleX contact verification helpers");
+
+      verification
+        .command("show")
+        .description("Show contact verification metadata when the runtime supports it")
+        .requiredOption("--contact-id <id>", "SimpleX contact id")
+        .option("--account-id <accountId>", "Use a specific SimpleX account")
+        .action(async (opts: ContactVerificationCliOptions) => {
+          await runVerificationShowCli(api, opts);
+        });
+
+      verification
+        .command("check")
+        .description("Check contact verification metadata when the runtime supports it")
+        .requiredOption("--contact-id <id>", "SimpleX contact id")
+        .option("--code <code>", "Verification code to check")
+        .option("--account-id <accountId>", "Use a specific SimpleX account")
+        .action(async (opts: ContactVerificationCliOptions) => {
+          await runVerificationCheckCli(api, opts);
+        });
+
       const groups = command.command("groups").description("SimpleX group helpers");
 
       groups
@@ -484,6 +643,48 @@ export function registerSimplexCliMetadata(api: OpenClawPluginApi): void {
         .option("--account-id <accountId>", "Use a specific SimpleX account")
         .action(async (opts: GroupLinkCliOptions) => {
           await runGroupLinkRevokeCli(api, opts);
+        });
+
+      const groupMember = groups.command("member").description("SimpleX group moderation helpers");
+
+      groupMember
+        .command("block")
+        .description("Block or remove a SimpleX group member when the runtime supports it")
+        .requiredOption("--group-id <id>", "SimpleX group id")
+        .requiredOption("--member-id <id>", "SimpleX group member id")
+        .option("--account-id <accountId>", "Use a specific SimpleX account")
+        .action(async (opts: GroupMemberCliOptions) => {
+          await runGroupMemberBlockCli(api, opts);
+        });
+
+      groupMember
+        .command("delete-messages")
+        .description("Remove a member's SimpleX group messages when the runtime supports it")
+        .requiredOption("--group-id <id>", "SimpleX group id")
+        .requiredOption("--member-id <id>", "SimpleX group member id")
+        .option("--account-id <accountId>", "Use a specific SimpleX account")
+        .action(async (opts: GroupMemberCliOptions) => {
+          await runGroupMemberDeleteMessagesCli(api, opts);
+        });
+
+      const files = command.command("files").description("SimpleX file transfer helpers");
+
+      files
+        .command("receive")
+        .description("Receive a pending SimpleX file transfer")
+        .requiredOption("--file-id <id>", "SimpleX file id")
+        .option("--account-id <accountId>", "Use a specific SimpleX account")
+        .action(async (opts: FileCliOptions) => {
+          await runFileReceiveCli(api, opts);
+        });
+
+      files
+        .command("cancel")
+        .description("Cancel a SimpleX file transfer")
+        .requiredOption("--file-id <id>", "SimpleX file id")
+        .option("--account-id <accountId>", "Use a specific SimpleX account")
+        .action(async (opts: FileCliOptions) => {
+          await runFileCancelCli(api, opts);
         });
 
       const connect = command.command("connect").description("SimpleX link onboarding helpers");

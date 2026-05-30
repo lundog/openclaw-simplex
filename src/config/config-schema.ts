@@ -41,6 +41,22 @@ const SimplexConnectionSchema = z
   })
   .strict();
 
+const SimplexStreamingSchema = z
+  .object({
+    nativeTransport: z.boolean().optional(),
+    throttleMs: z.number().int().positive().optional(),
+    minChars: z.number().int().positive().optional(),
+    wordBoundary: z.boolean().optional(),
+  })
+  .strict();
+
+const SimplexFilePolicySchema = z
+  .object({
+    autoAccept: z.boolean().optional(),
+    maxSizeMb: z.number().int().positive().optional(),
+  })
+  .strict();
+
 export const SimplexAccountConfigSchema = z
   .object({
     name: z.string().optional(),
@@ -56,6 +72,10 @@ export const SimplexAccountConfigSchema = z
     allowFrom: SimplexAllowFromListSchema,
     blockStreaming: z.boolean().optional(),
     blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
+    streaming: SimplexStreamingSchema.optional(),
+    messageTtlSeconds: z.number().int().positive().optional(),
+    filePolicy: SimplexFilePolicySchema.optional(),
+    experimentalChannels: z.boolean().optional(),
     groupPolicy: GroupPolicySchema.optional(),
     groupAllowFrom: SimplexAllowFromListSchema,
     groups: z.object({}).catchall(groupConfigSchema).optional(),

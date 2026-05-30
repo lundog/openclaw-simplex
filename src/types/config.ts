@@ -10,6 +10,18 @@ export type SimplexConnectionConfig = {
   connectTimeoutMs?: number;
 };
 
+export type SimplexStreamingConfig = {
+  nativeTransport?: boolean;
+  throttleMs?: number;
+  minChars?: number;
+  wordBoundary?: boolean;
+};
+
+export type SimplexFilePolicyConfig = {
+  autoAccept?: boolean;
+  maxSizeMb?: number;
+};
+
 export type ResolvedSimplexAccount = {
   accountId: string;
   enabled: boolean;

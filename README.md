@@ -115,11 +115,13 @@ The key runtime boundary is explicit: OpenClaw does not own or supervise the `si
 
 - Direct and group messaging over SimpleX
 - Media send/receive support
+- Optional SimpleX-native live assistant text replies with in-place finalization
+- Optional outbound message TTL configuration
 - Pairing approval, exec approval auth, and allowlist enforcement
 - Context visibility controls and OpenClaw security audit findings for broad access or unsafe WebSocket config
 - Invite link, address link, and QR generation
 - Shared `message` actions including `upload-file`, reactions, polls, edits, deletes, and group actions
-- Plugin tools and gateway methods for invite/address management, runtime diagnostics, contact requests, group links, and link onboarding
+- Plugin tools and gateway methods for invite/address management, runtime diagnostics, runtime users, verification, contact requests, group links, moderation, file receive/cancel, and link onboarding
 - Runtime status reporting, command handling, heartbeat readiness, and Control UI configuration
 - External WebSocket runtime integration with explicit operator-managed lifecycle
 
@@ -129,7 +131,7 @@ The key runtime boundary is explicit: OpenClaw does not own or supervise the `si
 
 Requirements:
 
-- OpenClaw `2026.5.4` or newer
+- OpenClaw `2026.5.27` or newer
 - Node.js `22` or newer in the OpenClaw plugin host
 - an external `simplex-chat` runtime reachable over WebSocket
 
@@ -207,11 +209,16 @@ This appends `openclaw-simplex` to the existing allowlist instead of replacing i
       "connection": {
         "wsUrl": "ws://127.0.0.1:5225"
       },
+      "streaming": {
+        "nativeTransport": false
+      },
       "allowFrom": ["*"]
     }
   }
 }
 ```
+
+Set `streaming.nativeTransport` to `true` only when you want SimpleX-native live assistant text previews. When enabled, the plugin sends an initial live message and updates it in place before finalizing the same message. Media and poll sends still use normal delivery.
 
 OpenClaw does not supervise `simplex-chat` for external plugins. If you want it to start automatically, run it as a host-managed user service such as `systemd --user`, `launchd`, or SysV init.
 
@@ -268,6 +275,10 @@ For automation and integrations, OpenClaw exposes gateway methods:
 - `simplex.invite.revoke`
 - `simplex.runtime.status`
 - `simplex.runtime.doctor`
+- `simplex.runtime.users`
+- `simplex.runtime.activeUser`
+- `simplex.verification.show`
+- `simplex.verification.check`
 - `simplex.requests.list`
 - `simplex.requests.accept`
 - `simplex.requests.reject`
@@ -275,6 +286,10 @@ For automation and integrations, OpenClaw exposes gateway methods:
 - `simplex.groups.link.create`
 - `simplex.groups.link.list`
 - `simplex.groups.link.revoke`
+- `simplex.groups.member.block`
+- `simplex.groups.member.deleteMessages`
+- `simplex.files.receive`
+- `simplex.files.cancel`
 - `simplex.connect.plan`
 - `simplex.connect`
 
@@ -342,8 +357,12 @@ openclaw pairing list
 - `simplex.invite.revoke`
 - `simplex.runtime.status`
 - `simplex.runtime.doctor`
+- `simplex.runtime.users`
+- `simplex.runtime.activeUser`
+- `simplex.verification.*`
 - `simplex.requests.*`
 - `simplex.groups.*`
+- `simplex.files.*`
 - `simplex.connect.*`
 
 **Plugin tools:**

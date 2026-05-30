@@ -25,9 +25,13 @@ The invite or address link is the access boundary. Once a sender reaches the age
   </Step>
 
   <Step title="Replies go back through SimpleX">
-    Message actions, media sends, polls, edits, deletes, reactions, and group operations are translated back into SimpleX commands and sent through the same WebSocket connection.
+    Message actions, media sends, polls, edits, deletes, reactions, and group operations are translated back into SimpleX commands and sent through the same WebSocket connection. When <code>streaming.nativeTransport</code> is enabled for the account, assistant text previews use SimpleX live messages and the final text edits that same message in place.
   </Step>
 </Steps>
+
+<Note>
+  SimpleX-native live replies are opt-in and text-only. Media, polls, and explicit action sends continue to use normal delivery, and failed live updates fall back to normal sends.
+</Note>
 
 <Note>
   OpenClaw does not spawn <code>simplex-chat</code>, does not create a hosted bot identity for this channel, and does not currently expose plugin-defined invite buttons on the external plugin channel card.

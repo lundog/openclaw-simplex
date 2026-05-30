@@ -4,6 +4,7 @@ import {
   createScopedDmSecurityResolver,
 } from "openclaw/plugin-sdk/channel-config-helpers";
 import type { ChannelPlugin, OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
+import { buildChannelOutboundSessionRoute } from "openclaw/plugin-sdk/channel-core";
 import { simplexMessageActions } from "../actions/actions.js";
 import { resolveSimplexAgentReactionGuidance } from "../actions/discovery.js";
 import {
@@ -140,6 +141,37 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
           : null;
       return target ? { id: target.to, threadId: target.threadId ?? null } : null;
     },
+    resolveOutboundSessionRoute: ({
+      cfg,
+      agentId,
+      accountId,
+      target,
+      resolvedTarget,
+      threadId,
+    }) => {
+      const rawTo = resolvedTarget?.to ?? target;
+      const parsed = parseSimplexExplicitTarget(rawTo) ?? parseSimplexExplicitTarget(target);
+      if (!parsed) {
+        return null;
+      }
+      if (parsed.chatType === "channel") {
+        const account = resolveSimplexAccount({ cfg, accountId });
+        if (account.config.experimentalChannels !== true) {
+          return null;
+        }
+      }
+      return buildChannelOutboundSessionRoute({
+        cfg,
+        agentId,
+        channel: SIMPLEX_CHANNEL_ID,
+        accountId: accountId ?? null,
+        peer: { kind: parsed.chatType, id: parsed.to },
+        chatType: parsed.chatType,
+        from: agentId,
+        to: parsed.to,
+        ...(threadId != null ? { threadId } : {}),
+      });
+    },
     inferTargetChatType: ({ to }) => inferSimplexTargetChatType(to),
     formatTargetDisplay: (params) => formatSimplexTargetDisplay(params),
     targetResolver: {
@@ -200,6 +232,10 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
     "simplex.invite.revoke",
     "simplex.runtime.status",
     "simplex.runtime.doctor",
+    "simplex.runtime.users",
+    "simplex.runtime.activeUser",
+    "simplex.verification.show",
+    "simplex.verification.check",
     "simplex.requests.list",
     "simplex.requests.accept",
     "simplex.requests.reject",
@@ -207,6 +243,10 @@ export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
     "simplex.groups.link.create",
     "simplex.groups.link.list",
     "simplex.groups.link.revoke",
+    "simplex.groups.member.block",
+    "simplex.groups.member.deleteMessages",
+    "simplex.files.receive",
+    "simplex.files.cancel",
     "simplex.connect.plan",
     "simplex.connect",
   ],

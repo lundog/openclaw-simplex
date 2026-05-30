@@ -111,6 +111,17 @@ export function buildSimplexStatus(): NonNullable<ChannelPlugin<ResolvedSimplexA
           wsUrl: account.wsUrl,
           transportWarnings: security.warnings,
           transportBlocked: security.blockingWarnings.length > 0,
+          liveMessages: account.config.streaming?.nativeTransport === true,
+          messageTtlSeconds: account.config.messageTtlSeconds ?? null,
+          filePolicy: {
+            autoAccept:
+              account.config.filePolicy?.autoAccept ??
+              account.config.connection?.autoAcceptFiles ??
+              false,
+            maxSizeMb: account.config.filePolicy?.maxSizeMb ?? null,
+            mediaMaxMb: account.config.mediaMaxMb ?? null,
+          },
+          experimentalChannels: account.config.experimentalChannels === true,
         },
       };
     },

@@ -12,13 +12,16 @@ import type {
 import {
   buildAcceptContactRequestCommand,
   buildAddGroupMemberCommand,
+  buildBlockGroupMemberCommand,
   buildCancelFileCommand,
+  buildCheckContactVerificationCommand,
   buildConnectCommand,
   buildConnectPlanCommand,
   buildCreateGroupCommand,
   buildCreateGroupLinkCommand,
   buildDeleteChatItemCommand,
   buildDeleteGroupLinkCommand,
+  buildDeleteGroupMemberMessagesCommand,
   buildLeaveGroupCommand,
   buildListContactsCommand,
   buildListGroupMembersCommand,
@@ -30,6 +33,7 @@ import {
   buildRemoveGroupMemberCommand,
   buildSendMessagesCommand,
   buildShowActiveUserCommand,
+  buildShowContactVerificationCommand,
   buildShowGroupLinkCommand,
   buildUpdateChatItemCommand,
   buildUpdateGroupProfileCommand,
@@ -121,6 +125,8 @@ export class SimplexClient {
   async sendMessages(params: {
     chatRef: string;
     composedMessages: SimplexComposedMessage[];
+    liveMessage?: boolean;
+    ttl?: number;
   }): Promise<unknown[]> {
     const payload = await this.runCommand(buildSendMessagesCommand(params));
     return firstArrayField(payload, ["chatItems", "items"]);
@@ -144,14 +150,16 @@ export class SimplexClient {
 
   async editMessage(params: {
     chatRef: string;
-    messageId: number;
+    messageId: number | string;
     updatedMessage: SimplexComposedMessage;
+    liveMessage?: boolean;
   }): Promise<unknown> {
     return await this.runCommand(
       buildUpdateChatItemCommand({
         chatRef: params.chatRef,
         chatItemId: params.messageId,
         updatedMessage: params.updatedMessage,
+        liveMessage: params.liveMessage,
       })
     );
   }
@@ -174,7 +182,7 @@ export class SimplexClient {
     return await this.runCommand(buildReceiveFileCommand({ fileId }));
   }
 
-  async cancelFile(fileId: number): Promise<unknown> {
+  async cancelFile(fileId: number | string): Promise<unknown> {
     return await this.runCommand(buildCancelFileCommand(fileId));
   }
 
@@ -255,6 +263,21 @@ export class SimplexClient {
     return await this.runCommand(buildRemoveGroupMemberCommand(params));
   }
 
+  async blockGroupMember(params: {
+    groupId: number | string;
+    memberId: number | string;
+  }): Promise<unknown> {
+    return await this.runCommand(buildBlockGroupMemberCommand(params));
+  }
+
+  async deleteGroupMemberMessages(params: {
+    groupId: number | string;
+    memberId: number | string;
+    deleteMode?: SimplexDeleteMode;
+  }): Promise<unknown> {
+    return await this.runCommand(buildDeleteGroupMemberMessagesCommand(params));
+  }
+
   async leaveGroup(groupId: number | string): Promise<unknown> {
     return await this.runCommand(buildLeaveGroupCommand(groupId));
   }
@@ -284,6 +307,17 @@ export class SimplexClient {
 
   async rejectContactRequest(contactRequestId: number): Promise<unknown> {
     return await this.runCommand(buildRejectContactRequestCommand(contactRequestId));
+  }
+
+  async showContactVerification(contactId: number | string): Promise<unknown> {
+    return await this.runCommand(buildShowContactVerificationCommand(contactId));
+  }
+
+  async checkContactVerification(params: {
+    contactId: number | string;
+    code?: string | null;
+  }): Promise<unknown> {
+    return await this.runCommand(buildCheckContactVerificationCommand(params));
   }
 
   async planConnect(link: string): Promise<unknown> {

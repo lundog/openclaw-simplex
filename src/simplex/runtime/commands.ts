@@ -52,10 +52,22 @@ function isSignedIntegerToken(value: string): boolean {
 }
 
 function normalizeCommandId(value: number | string): string {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(Math.trunc(value));
+  if (typeof value === "number" && Number.isInteger(value)) {
+    return String(value);
   }
   return String(value).trim();
+}
+
+function normalizePositiveIntegerToken(value: number | string, label: string): string {
+  const normalized = normalizeCommandId(value);
+  if (!isSignedIntegerToken(normalized)) {
+    throw new Error(`invalid SimpleX ${label}: ${value}`);
+  }
+  const parsed = Number.parseInt(normalized, 10);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`invalid SimpleX ${label}: ${value}`);
+  }
+  return normalized;
 }
 
 function normalizeContactRef(value: number | string): string {
@@ -104,6 +116,12 @@ function normalizeSimplexChatRef(raw: string): string {
   if (withoutPrefix.startsWith("#") || withoutPrefix.toLowerCase().startsWith("group:")) {
     return normalizeGroupRef(withoutPrefix);
   }
+  if (withoutPrefix.startsWith("!") || withoutPrefix.toLowerCase().startsWith("channel:")) {
+    const value = withoutPrefix.startsWith("!")
+      ? withoutPrefix.slice(1).trim()
+      : withoutPrefix.slice(withoutPrefix.indexOf(":") + 1).trim();
+    return `!${value}`;
+  }
   if (withoutPrefix.startsWith("@")) {
     return normalizeContactRef(withoutPrefix);
   }
@@ -126,6 +144,7 @@ function normalizeChatRefToken(value: string): string {
   const normalized =
     SIMPLEX_PROVIDER_PREFIXES.some((prefix) => lowered.startsWith(`${prefix}:`)) ||
     lowered.startsWith("group:") ||
+    lowered.startsWith("channel:") ||
     lowered.startsWith("contact:") ||
     lowered.startsWith("user:") ||
     lowered.startsWith("member:")
@@ -133,7 +152,10 @@ function normalizeChatRefToken(value: string): string {
       : trimmed;
   const prefix = normalized[0];
   const body = normalized.slice(1);
-  if ((prefix !== "@" && prefix !== "#") || !isAsciiAlnumUnderscoreOrHyphen(body)) {
+  if (
+    (prefix !== "@" && prefix !== "#" && prefix !== "!") ||
+    !isAsciiAlnumUnderscoreOrHyphen(body)
+  ) {
     throw new Error(`invalid SimpleX chat ref: ${value}`);
   }
   return normalized;
@@ -145,6 +167,13 @@ function normalizeChatItemIdToken(value: number | string): string {
     throw new Error(`invalid SimpleX chat item id: ${value}`);
   }
   return normalized;
+}
+
+function normalizeTtlToken(value: number): string {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`invalid SimpleX ttl: ${value}`);
+  }
+  return String(value);
 }
 
 function quoteCliArg(value: string): string {
@@ -181,7 +210,7 @@ export function formatSimplexChatRef(ref: SimplexChatRef): string {
 
 export function parseSimplexNumericId(value: number | string): number | null {
   if (typeof value === "number") {
-    return Number.isFinite(value) ? Math.trunc(value) : null;
+    return Number.isSafeInteger(value) ? value : null;
   }
   const raw = stripSimplexProviderPrefix(value.trim());
   const normalized = raw.startsWith("@")
@@ -219,14 +248,14 @@ export function buildSendMessagesCommand(params: {
 }): string {
   const chatRef = normalizeChatRefToken(params.chatRef);
   const liveFlag = params.liveMessage ? " live=on" : "";
-  const ttlFlag = typeof params.ttl === "number" ? ` ttl=${params.ttl}` : "";
+  const ttlFlag = typeof params.ttl === "number" ? ` ttl=${normalizeTtlToken(params.ttl)}` : "";
   const json = JSON.stringify(params.composedMessages);
   return `/_send ${chatRef}${liveFlag}${ttlFlag} json ${json}`;
 }
 
 export function buildUpdateChatItemCommand(params: {
   chatRef: string;
-  chatItemId: number;
+  chatItemId: number | string;
   updatedMessage: SimplexComposedMessage;
   liveMessage?: boolean;
 }): string {
@@ -251,7 +280,7 @@ export function buildDeleteChatItemCommand(params: {
 
 export function buildReactionCommand(params: {
   chatRef: string;
-  chatItemId: number;
+  chatItemId: number | string;
   add: boolean;
   reaction: SimplexReaction;
 }): string {
@@ -262,17 +291,11 @@ export function buildReactionCommand(params: {
 }
 
 export function buildReceiveFileCommand(params: { fileId: number }): string {
-  if (!Number.isFinite(params.fileId)) {
-    throw new Error(`invalid SimpleX file id: ${params.fileId}`);
-  }
-  return `/freceive ${Math.trunc(params.fileId)}`;
+  return `/freceive ${normalizePositiveIntegerToken(params.fileId, "file id")}`;
 }
 
-export function buildCancelFileCommand(fileId: number): string {
-  if (!Number.isFinite(fileId)) {
-    throw new Error(`invalid SimpleX file id: ${fileId}`);
-  }
-  return `/fcancel ${Math.trunc(fileId)}`;
+export function buildCancelFileCommand(fileId: number | string): string {
+  return `/fcancel ${normalizePositiveIntegerToken(fileId, "file id")}`;
 }
 
 export function buildListUsersCommand(): string {
@@ -321,6 +344,24 @@ export function buildRemoveGroupMemberCommand(params: {
   return `/_remove ${normalizeGroupRef(params.groupId)} ${normalizeContactRef(params.memberId)}`;
 }
 
+export function buildBlockGroupMemberCommand(params: {
+  groupId: number | string;
+  memberId: number | string;
+}): string {
+  return `/_block member ${normalizeGroupRef(params.groupId)} ${normalizeContactRef(params.memberId)}`;
+}
+
+export function buildDeleteGroupMemberMessagesCommand(params: {
+  groupId: number | string;
+  memberId: number | string;
+  deleteMode?: SimplexDeleteMode;
+}): string {
+  const deleteMode = params.deleteMode ?? "broadcast";
+  return `/_delete member items ${normalizeGroupRef(params.groupId)} ${normalizeContactRef(
+    params.memberId
+  )} ${deleteMode}`;
+}
+
 export function buildLeaveGroupCommand(groupId: number | string): string {
   return `/_leave ${normalizeGroupRef(groupId)}`;
 }
@@ -357,6 +398,18 @@ export function buildAcceptContactRequestCommand(contactRequestId: number | stri
 
 export function buildRejectContactRequestCommand(contactRequestId: number | string): string {
   return `/_reject ${normalizeCommandId(contactRequestId)}`;
+}
+
+export function buildShowContactVerificationCommand(contactId: number | string): string {
+  return `/_show verification ${normalizeContactRef(contactId)}`;
+}
+
+export function buildCheckContactVerificationCommand(params: {
+  contactId: number | string;
+  code?: string | null;
+}): string {
+  const suffix = params.code?.trim() ? ` ${quoteCliArg(params.code)}` : "";
+  return `/_check verification ${normalizeContactRef(params.contactId)}${suffix}`;
 }
 
 export function buildConnectPlanCommand(link: string): string {
