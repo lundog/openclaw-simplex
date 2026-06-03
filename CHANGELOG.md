@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.1] - 2026-06-03
+
+### Added
+
+- Added structured SimpleX runtime capability probes for runtime version, active user, user/contact/group counts, live replies, TTL, verification, moderation, file controls, and experimental channel posture.
+- Added capability probe metadata to `simplex.runtime.status`, `simplex.runtime.doctor`, and channel status snapshots.
+- Added docs guidance to run `openclaw simplex runtime doctor` after enabling SimpleX-native live replies.
+
+### Changed
+
+- Tightened SimpleX action numeric parameter parsing so partial numeric strings and decimal values are rejected for integer fields instead of being coerced or truncated.
+- Clarified runtime capability probes as advisory WebSocket checks that do not spawn or manage `simplex-chat`.
+
+### Fixed
+
+- Treated SimpleX empty-list runtime responses as supported empty contact/group counts, avoiding false doctor failures on accounts with no groups.
+- Fixed setup entry declaration output portability by adding an explicit setup entry type annotation.
+
 ## [1.7.0] - 2026-05-30
 
 ### Added
