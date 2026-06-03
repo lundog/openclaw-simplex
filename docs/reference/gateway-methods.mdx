@@ -112,7 +112,7 @@ Response highlights:
 - `activeUser`: active SimpleX user profile, if available
 - `address`: current SimpleX address metadata, if available
 - `counts`: contact, group, and user counts
-- `capabilities`: configured live-message, TTL, moderation, verification, and experimental channel posture
+- `capabilities`: advisory runtime probe states for active user visibility, users, contacts, groups, live messages, TTL, moderation, verification, file controls, and experimental channel posture
 - `filePolicy`: configured file auto-accept and size policy visibility
 - `security`: WebSocket endpoint warnings and blocking posture
 - `runtime`: active client, connection state, and latest runtime error
@@ -139,11 +139,26 @@ Example response shape:
     "users": 1
   },
   "capabilities": {
-    "liveMessages": true,
-    "ttlConfigured": false,
-    "moderation": "probe-required",
-    "verification": "probe-required",
-    "experimentalChannels": false
+    "liveMessages": {
+      "state": "unknown",
+      "detail": "Live replies are disabled in account config.",
+      "runtimeVersion": null
+    },
+    "ttl": {
+      "state": "unknown",
+      "detail": "Message TTL is not configured.",
+      "runtimeVersion": null
+    },
+    "moderation": {
+      "state": "unknown",
+      "detail": "Moderation support requires a real group/member target, so the advisory probe did not run it.",
+      "runtimeVersion": null
+    },
+    "verification": {
+      "state": "unknown",
+      "detail": "Verification support requires a real contact target, so the advisory probe did not run it.",
+      "runtimeVersion": null
+    }
   }
 }
 ```
@@ -151,6 +166,8 @@ Example response shape:
 ## `simplex.runtime.doctor`
 
 Return the same runtime status plus `ok` and `issues` fields for operator diagnostics.
+
+Run `openclaw simplex runtime doctor` after enabling `streaming.nativeTransport` or message TTL. Capability probes are advisory WebSocket checks; they do not spawn, supervise, or manage the `simplex-chat` process, and they avoid destructive sends/deletes unless a caller explicitly supplies a real target through a higher-level operation.
 
 ## `simplex.runtime.users`
 

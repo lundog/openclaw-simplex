@@ -152,6 +152,11 @@ Run runtime diagnostics:
 openclaw simplex runtime doctor
 ```
 
+Run the runtime doctor again after enabling SimpleX-native live replies with
+<code>streaming.nativeTransport</code>. The doctor reports advisory capability
+probe states from the active WebSocket runtime, but it does not spawn, supervise,
+or manage <code>simplex-chat</code>.
+
 List pending SimpleX contact requests:
 
 ```bash
