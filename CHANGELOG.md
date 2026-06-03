@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.2] - 2026-06-04
+
+### Fixed
+
+- Avoided live SimpleX directory lookups for explicit SimpleX target ids such as `openclaw-simplex:4`, `#4`, `group:4`, or numeric group ids.
+- Stopped provider-prefixed explicit group ids from being passed through to SimpleX `/_groups` search before replies, reducing repeated `/user` and `/_groups` calls on direct reply paths.
+
 ## [1.7.1] - 2026-06-03
 
 ### Added
