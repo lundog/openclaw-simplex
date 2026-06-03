@@ -2,10 +2,16 @@ import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
 import type { ChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 import { SIMPLEX_CHANNEL_ID } from "../../constants.js";
 import { describeSimplexWsEndpointSecurity } from "../../simplex/runtime/security.js";
+import {
+  probeSimplexRuntimeCapabilities,
+  type SimplexRuntimeCapabilityReport,
+} from "../../simplex/services/runtime-capabilities.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import { resolveSimplexHealthState } from "../shared/simplex-common.js";
 
-export function buildSimplexStatus(): NonNullable<ChannelPlugin<ResolvedSimplexAccount>["status"]> {
+export function buildSimplexStatus(): NonNullable<
+  ChannelPlugin<ResolvedSimplexAccount, SimplexRuntimeCapabilityReport>["status"]
+> {
   return {
     defaultRuntime: {
       accountId: DEFAULT_ACCOUNT_ID,
@@ -75,9 +81,29 @@ export function buildSimplexStatus(): NonNullable<ChannelPlugin<ResolvedSimplexA
         mode: snapshot.mode ?? account.mode,
         wsUrl: account.wsUrl,
         transportWarnings: security.warnings,
+        capabilities:
+          (snapshot.application as { capabilities?: SimplexRuntimeCapabilityReport } | undefined)
+            ?.capabilities ?? null,
       };
     },
-    buildAccountSnapshot: async ({ account, runtime }) => {
+    probeAccount: async ({ account }) => {
+      const result = await probeSimplexRuntimeCapabilities({ account });
+      return result.capabilities;
+    },
+    formatCapabilitiesProbe: ({ probe }) => [
+      { text: `SimpleX version: ${probe.version.state}` },
+      { text: `SimpleX active user: ${probe.activeUser.state}` },
+      { text: `SimpleX users: ${probe.users.state} (${probe.users.count ?? "unknown"})` },
+      { text: `SimpleX contacts: ${probe.contacts.state} (${probe.contacts.count ?? "unknown"})` },
+      { text: `SimpleX groups: ${probe.groups.state} (${probe.groups.count ?? "unknown"})` },
+      { text: `SimpleX live replies: ${probe.liveMessages.state}` },
+      { text: `SimpleX TTL: ${probe.ttl.state}` },
+      { text: `SimpleX verification: ${probe.verification.state}` },
+      { text: `SimpleX moderation: ${probe.moderation.state}` },
+      { text: `SimpleX file controls: ${probe.files.state}` },
+      { text: `SimpleX channels: ${probe.experimentalChannels.state}` },
+    ],
+    buildAccountSnapshot: async ({ account, runtime, probe }) => {
       const connection = account.config.connection;
       const security = describeSimplexWsEndpointSecurity(account.wsUrl, {
         allowUnsafeRemoteWs: connection?.allowUnsafeRemoteWs,
@@ -113,6 +139,7 @@ export function buildSimplexStatus(): NonNullable<ChannelPlugin<ResolvedSimplexA
           transportBlocked: security.blockingWarnings.length > 0,
           liveMessages: account.config.streaming?.nativeTransport === true,
           messageTtlSeconds: account.config.messageTtlSeconds ?? null,
+          capabilities: probe ?? null,
           filePolicy: {
             autoAccept:
               account.config.filePolicy?.autoAccept ??
