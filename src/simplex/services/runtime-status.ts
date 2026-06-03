@@ -1,11 +1,12 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
-import {
-  readSimplexRuntimeVersion,
-  resolveRuntimeAccount,
-  withActiveSimplexUser,
-} from "../runtime/account.js";
+import { resolveRuntimeAccount } from "../runtime/account.js";
 import { describeSimplexWsEndpointSecurity } from "../runtime/security.js";
 import { getActiveSimplexClient } from "../runtime/transport.js";
+import {
+  collectSimplexCapabilityIssues,
+  probeSimplexRuntimeCapabilities,
+  type SimplexRuntimeCapabilityReport,
+} from "./runtime-capabilities.js";
 
 export type SimplexRuntimeStatusResult = {
   accountId: string;
@@ -28,13 +29,7 @@ export type SimplexRuntimeStatusResult = {
     groups: number;
     users: number;
   };
-  capabilities: {
-    liveMessages: boolean;
-    ttlConfigured: boolean;
-    moderation: "probe-required";
-    verification: "probe-required";
-    experimentalChannels: boolean;
-  };
+  capabilities: SimplexRuntimeCapabilityReport;
   security: {
     transportWarnings: string[];
     transportBlocked: boolean;
@@ -58,19 +53,7 @@ export async function getSimplexRuntimeStatus(params: {
   });
   const fileAutoAccept =
     account.config.filePolicy?.autoAccept ?? account.config.connection?.autoAcceptFiles ?? false;
-  const details = await withActiveSimplexUser({
-    account,
-    run: async (userId, client) => {
-      const [activeUser, address, contacts, groups, users] = await Promise.all([
-        client.getActiveUser(),
-        client.getAddress().catch(() => undefined),
-        client.listContacts(userId).catch(() => []),
-        client.listGroups({ userId }).catch(() => []),
-        client.listUsers().catch(() => []),
-      ]);
-      return { activeUser, address, contacts, groups, users };
-    },
-  });
+  const details = await probeSimplexRuntimeCapabilities({ account });
 
   return {
     accountId: account.accountId,
@@ -78,7 +61,7 @@ export async function getSimplexRuntimeStatus(params: {
     configured: account.configured,
     mode: account.mode,
     wsUrl: account.wsUrl ?? null,
-    runtimeVersion: readSimplexRuntimeVersion(),
+    runtimeVersion: details.capabilities.runtimeVersion,
     runtime: {
       activeClient: Boolean(activeClient),
       connected: connection?.connected ?? true,
@@ -93,13 +76,7 @@ export async function getSimplexRuntimeStatus(params: {
       groups: details.groups.length,
       users: details.users.length,
     },
-    capabilities: {
-      liveMessages: account.config.streaming?.nativeTransport === true,
-      ttlConfigured: typeof account.config.messageTtlSeconds === "number",
-      moderation: "probe-required",
-      verification: "probe-required",
-      experimentalChannels: account.config.experimentalChannels === true,
-    },
+    capabilities: details.capabilities,
     security: {
       transportWarnings: security.warnings,
       transportBlocked: security.blockingWarnings.length > 0,
@@ -124,6 +101,13 @@ export async function doctorSimplexRuntime(params: {
   if (!status.activeUser) {
     issues.push("SimpleX runtime has no active user profile.");
   }
+  if (status.capabilities.activeUser.state !== "supported") {
+    issues.push(
+      `SimpleX active user probe is ${status.capabilities.activeUser.state}${
+        status.capabilities.activeUser.error ? `: ${status.capabilities.activeUser.error}` : "."
+      }`
+    );
+  }
   if (status.runtime.lastError) {
     issues.push(`SimpleX runtime error: ${status.runtime.lastError}`);
   }
@@ -133,5 +117,11 @@ export async function doctorSimplexRuntime(params: {
   if (status.security.transportBlocked) {
     issues.push("SimpleX WebSocket endpoint is blocked by transport security policy.");
   }
+  issues.push(
+    ...collectSimplexCapabilityIssues({
+      account: resolveRuntimeAccount(params.cfg, params.accountId),
+      capabilities: status.capabilities,
+    })
+  );
   return { ...status, ok: issues.length === 0, issues };
 }
