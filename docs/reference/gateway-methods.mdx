@@ -116,7 +116,7 @@ Response highlights:
 - `filePolicy`: configured file auto-accept and size policy visibility
 - `security`: WebSocket endpoint warnings and blocking posture
 - `runtime`: active client, connection state, and latest runtime error
-- `runtimeVersion`: installed `simplex-chat` runtime version, if available
+- `runtimeVersion`: SimpleX runtime version when the runtime exposes it through a probe response
 - `wsUrl`: configured WebSocket URL
 
 Example response shape:
@@ -127,7 +127,7 @@ Example response shape:
   "configured": true,
   "mode": "external",
   "wsUrl": "ws://127.0.0.1:5225",
-  "runtimeVersion": "6.5.0",
+  "runtimeVersion": null,
   "runtime": {
     "activeClient": true,
     "connected": true,
@@ -139,6 +139,39 @@ Example response shape:
     "users": 1
   },
   "capabilities": {
+    "version": {
+      "state": "unknown",
+      "command": "/version",
+      "detail": "Runtime accepted /version but did not expose a version field.",
+      "runtimeVersion": null,
+      "value": null
+    },
+    "activeUser": {
+      "state": "supported",
+      "command": "/user",
+      "runtimeVersion": null,
+      "value": {
+        "userId": 1
+      }
+    },
+    "users": {
+      "state": "supported",
+      "command": "/users",
+      "runtimeVersion": null,
+      "count": 1
+    },
+    "contacts": {
+      "state": "supported",
+      "command": "/_contacts 1",
+      "runtimeVersion": null,
+      "count": 1
+    },
+    "groups": {
+      "state": "supported",
+      "command": "/_groups 1",
+      "runtimeVersion": null,
+      "count": 0
+    },
     "liveMessages": {
       "state": "unknown",
       "detail": "Live replies are disabled in account config.",

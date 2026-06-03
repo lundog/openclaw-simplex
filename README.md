@@ -20,7 +20,7 @@ That changes where reachability comes from. The agent does not depend on a publi
 
 **Self-hosted transport, not only self-hosted inference.** If you're running OpenClaw on your own infrastructure and want the runtime and relay path under your control, SimpleX makes that possible. The CLI runs locally, the plugin connects to it over a local WebSocket, and SimpleX relays are self-hostable. If you run the runtime and relays inside your environment, the whole path can stay under your infrastructure.
 
-**Agent-to-agent transport without a platform account layer.** Two OpenClaw instances, each with this plugin, can talk over SimpleX without relying on a shared bot API platform, phone-number-based identity, or workspace app registration. If you run your own relays inside an isolated environment, the path can stay off third-party infrastructure.
+**Agent-to-agent chat transport without a platform account layer.** Two OpenClaw instances, each with this plugin, can exchange ordinary chat messages over SimpleX without relying on a shared bot API platform, phone-number-based identity, or workspace app registration. This is not OpenClaw's native A2A/session protocol over SimpleX. If you run your own relays inside an isolated environment, the path can stay off third-party infrastructure.
 
 **Peer access without platform account onboarding.** You can let someone interact with your agent without asking them to create an account on a platform you control. In the common case, a user installs SimpleX, scans your QR code, and the contact path exists.
 
@@ -219,6 +219,14 @@ This appends `openclaw-simplex` to the existing allowlist instead of replacing i
 ```
 
 Set `streaming.nativeTransport` to `true` only when you want SimpleX-native live assistant text previews. When enabled, the plugin sends an initial live message and updates it in place before finalizing the same message. Media and poll sends still use normal delivery.
+
+After enabling SimpleX-native live replies or message TTL, run:
+
+```bash
+openclaw simplex runtime doctor
+```
+
+The doctor reports advisory capability probes from the active WebSocket runtime. These probes do not spawn, supervise, or manage `simplex-chat`.
 
 OpenClaw does not supervise `simplex-chat` for external plugins. If you want it to start automatically, run it as a host-managed user service such as `systemd --user`, `launchd`, or SysV init.
 
