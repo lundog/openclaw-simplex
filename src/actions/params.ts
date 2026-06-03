@@ -35,7 +35,11 @@ export function readNumberParam(
   } else if (typeof raw === "string") {
     const trimmed = raw.trim();
     if (trimmed) {
-      const parsed = Number.parseFloat(trimmed);
+      const numericPattern = options.integer ? /^-?\d+$/ : /^-?(?:\d+|\d*\.\d+)$/;
+      if (!numericPattern.test(trimmed)) {
+        throw new Error(`${key} must be ${options.integer ? "an integer" : "a number"}`);
+      }
+      const parsed = Number(trimmed);
       if (Number.isFinite(parsed)) {
         value = parsed;
       }
@@ -47,7 +51,10 @@ export function readNumberParam(
     }
     return undefined;
   }
-  return options.integer ? Math.trunc(value) : value;
+  if (options.integer && !Number.isInteger(value)) {
+    throw new Error(`${key} must be an integer`);
+  }
+  return value;
 }
 
 export function normalizeSimplexChatRef(raw: string, chatType?: string | null): string {
