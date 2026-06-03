@@ -17,6 +17,7 @@ import {
   SimplexChannelConfigSchema,
 } from "../config/config-schema.js";
 import { SIMPLEX_CHANNEL_ID } from "../constants.js";
+import type { SimplexRuntimeCapabilityReport } from "../simplex/services/runtime-capabilities.js";
 import type { ResolvedSimplexAccount } from "../types/config.js";
 import {
   listSimplexDirectoryGroups,
@@ -62,7 +63,9 @@ function resolveSimplexConfigAccount(cfg: OpenClawConfig, accountId?: string | n
   return resolveSimplexAccount({ cfg, accountId });
 }
 
-export const simplexPlugin: ChannelPlugin<ResolvedSimplexAccount> = {
+type SimplexPlugin = ChannelPlugin<ResolvedSimplexAccount, SimplexRuntimeCapabilityReport>;
+
+export const simplexPlugin: SimplexPlugin = {
   id: SIMPLEX_CHANNEL_ID,
   meta: {
     id: SIMPLEX_CHANNEL_ID,
