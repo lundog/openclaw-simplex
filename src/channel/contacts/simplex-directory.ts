@@ -174,6 +174,34 @@ function normalizeSimplexInputId(input: string): { id: string; explicit: boolean
   return { id: withoutPrefix, explicit: false };
 }
 
+function normalizeSimplexDirectoryQuery(query?: string | null): string | undefined {
+  const raw = query?.trim();
+  if (!raw) {
+    return undefined;
+  }
+  const { id, explicit } = normalizeSimplexInputId(raw);
+  if (explicit && id) {
+    return id;
+  }
+  return stripSimplexPrefix(raw);
+}
+
+function readDirectoryIdCandidate(query?: string | null): string | null {
+  const raw = query?.trim();
+  if (!raw) {
+    return null;
+  }
+  const stripped = stripSimplexPrefix(raw);
+  const normalized = normalizeSimplexInputId(raw);
+  if (normalized.explicit && normalized.id) {
+    return normalized.id;
+  }
+  if (stripped !== raw && stripped) {
+    return stripped;
+  }
+  return parseSimplexNumericId(stripped) === null ? null : stripped;
+}
+
 async function fetchActiveUserInfo(
   account: ResolvedSimplexAccount,
   runtime: RuntimeEnv
@@ -217,11 +245,12 @@ async function listContactsLive(params: {
   return await withSimplexClient({
     account: params.account,
     run: async (client) => {
+      const query = normalizeSimplexDirectoryQuery(params.query);
       const contacts = await client.listContacts(userId);
       const mapped = contacts.map(mapContactEntry).filter(isDirectoryEntry);
       return applyDirectoryFilter({
         entries: mapped,
-        query: params.query,
+        query,
         limit: params.limit,
       });
     },
@@ -246,11 +275,12 @@ async function listGroupsLive(params: {
   return await withSimplexClient({
     account: params.account,
     run: async (client) => {
-      const groups = await client.listGroups({ userId, search: params.query });
+      const query = normalizeSimplexDirectoryQuery(params.query);
+      const groups = await client.listGroups({ userId, search: query });
       const mapped = groups.map(mapGroupEntry).filter(isDirectoryEntry);
       return applyDirectoryFilter({
         entries: mapped,
-        query: params.query,
+        query,
         limit: params.limit,
       });
     },
@@ -309,6 +339,10 @@ export async function listSimplexDirectoryPeers(params: {
   if (!account.configured) {
     return [];
   }
+  const id = readDirectoryIdCandidate(params.query);
+  if (id) {
+    return [{ kind: "user", id }];
+  }
   return await listContactsLive({
     account,
     runtime: params.runtime,
@@ -327,6 +361,10 @@ export async function listSimplexDirectoryGroups(params: {
   const account = resolveSimplexAccount({ cfg: params.cfg, accountId: params.accountId });
   if (!account.configured) {
     return [];
+  }
+  const id = readDirectoryIdCandidate(params.query);
+  if (id) {
+    return [{ kind: "group", id }];
   }
   return await listGroupsLive({
     account,
@@ -370,12 +408,32 @@ export async function resolveSimplexTargets(params: {
       note: "simplex account not configured",
     }));
   }
+  const direct = new Map<string, SimplexResolveResult>();
+  for (const input of params.inputs) {
+    const id = readDirectoryIdCandidate(input);
+    if (id) {
+      direct.set(input, {
+        input,
+        resolved: true,
+        id,
+        note: "treated as explicit id",
+      });
+    }
+  }
+  if (direct.size === params.inputs.length) {
+    return params.inputs.map((input) => direct.get(input) ?? { input, resolved: false });
+  }
+
   const entries =
     params.kind === "group"
       ? await listGroupsLive({ account, runtime: params.runtime })
       : await listContactsLive({ account, runtime: params.runtime });
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
   return params.inputs.map((input) => {
+    const directMatch = direct.get(input);
+    if (directMatch) {
+      return directMatch;
+    }
     const { id, explicit } = normalizeSimplexInputId(input);
     if (explicit && id) {
       const match = byId.get(id);

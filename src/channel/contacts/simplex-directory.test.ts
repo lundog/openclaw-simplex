@@ -1,15 +1,18 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const simplexApiMock = vi.hoisted(() => ({
   contacts: [] as unknown[],
   groups: [] as unknown[],
   members: [] as unknown[],
+  listGroups: vi.fn(async (_params?: unknown) => [] as unknown[]),
   reset() {
     this.contacts = [];
     this.groups = [];
     this.members = [];
+    this.listGroups.mockImplementation(async () => this.groups);
+    this.listGroups.mockClear();
   },
 }));
 
@@ -21,7 +24,7 @@ vi.mock("../../simplex/runtime/transport.js", () => ({
         profile: { displayName: "OpenClaw SimpleX" },
       })),
       listContacts: vi.fn(async () => simplexApiMock.contacts),
-      listGroups: vi.fn(async () => simplexApiMock.groups),
+      listGroups: simplexApiMock.listGroups,
       listGroupMembers: vi.fn(async () => simplexApiMock.members),
     };
     return await params.run(client);
@@ -32,6 +35,7 @@ import {
   listSimplexDirectoryGroups,
   listSimplexDirectoryPeers,
   listSimplexGroupMembers,
+  resolveSimplexTargets,
 } from "./simplex-directory.js";
 
 const cfg = {
@@ -49,9 +53,8 @@ const runtime = {
 } as unknown as RuntimeEnv;
 
 describe("simplex directory mapping", () => {
-  afterEach(() => {
+  beforeEach(() => {
     simplexApiMock.reset();
-    vi.clearAllMocks();
   });
 
   it("maps nested contact payloads and applies query filtering", async () => {
@@ -96,6 +99,37 @@ describe("simplex directory mapping", () => {
         name: "Ops",
       }),
     ]);
+  });
+
+  it("resolves provider-prefixed group ids without live group search", async () => {
+    await expect(
+      listSimplexDirectoryGroups({ cfg, runtime, query: "openclaw-simplex:4" })
+    ).resolves.toEqual([
+      {
+        kind: "group",
+        id: "4",
+      },
+    ]);
+    expect(simplexApiMock.listGroups).not.toHaveBeenCalled();
+  });
+
+  it("resolves explicit targets without listing runtime groups", async () => {
+    await expect(
+      resolveSimplexTargets({
+        cfg,
+        runtime,
+        kind: "group",
+        inputs: ["openclaw-simplex:4"],
+      })
+    ).resolves.toEqual([
+      {
+        input: "openclaw-simplex:4",
+        resolved: true,
+        id: "4",
+        note: "treated as explicit id",
+      },
+    ]);
+    expect(simplexApiMock.listGroups).not.toHaveBeenCalled();
   });
 
   it("maps group member payloads", async () => {
