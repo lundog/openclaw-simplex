@@ -113,6 +113,12 @@ List current invite and address state:
 openclaw simplex invite list
 ```
 
+Revoke the current address/invite link:
+
+```bash
+openclaw simplex invite revoke
+```
+
 Show the current address link:
 
 ```bash
@@ -213,13 +219,13 @@ openclaw simplex files cancel --file-id <id>
 Preview what connecting to a SimpleX link would do:
 
 ```bash
-openclaw simplex connect plan --link "<simplex-link>"
+openclaw simplex connect plan --link "simplex:/contact#..."
 ```
 
 Connect the active SimpleX user to a contact, address, or group link:
 
 ```bash
-openclaw simplex connect run --link "<simplex-link>"
+openclaw simplex connect run --link "https://smp18.simplex.im/g#..."
 ```
 
 ## Pairing

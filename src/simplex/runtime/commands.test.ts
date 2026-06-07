@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildConnectCommand,
+  buildConnectPlanCommand,
   buildDeleteChatItemCommand,
   buildSendMessagesCommand,
   buildUpdateChatItemCommand,
@@ -49,5 +51,18 @@ describe("simplex command helpers", () => {
         chatItemIds: ["456abc"],
       })
     ).toThrow("invalid SimpleX chat item id");
+  });
+
+  it("builds unquoted connect commands for SimpleX links", () => {
+    const link = "https://smp18.simplex.im/g#HF_WI7By_xG3JvZHZA-aARcMeiWy1vFvRBmh_8vt4uc";
+    expect(buildConnectPlanCommand(link)).toBe(`/connect plan ${link}`);
+    expect(buildConnectCommand(link)).toBe(`/connect ${link}`);
+  });
+
+  it("rejects whitespace in SimpleX connect links", () => {
+    expect(() => buildConnectCommand("https://smp18.simplex.im/g#abc extra")).toThrow(
+      "invalid SimpleX connection link"
+    );
+    expect(() => buildConnectPlanCommand("")).toThrow("invalid SimpleX connection link");
   });
 });

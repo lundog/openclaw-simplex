@@ -5,7 +5,10 @@ import { normalizePollInput } from "openclaw/plugin-sdk/poll-runtime";
 import { resolveSimplexAccount } from "../../config/accounts.js";
 import { SIMPLEX_CHANNEL_ID } from "../../constants.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
-import { assertSimplexOutboundAccountReady } from "../shared/simplex-common.js";
+import {
+  assertSimplexOutboundAccountReady,
+  parseSimplexExplicitTarget,
+} from "../shared/simplex-common.js";
 import { buildAndSendSimplexMessages } from "./simplex-send.js";
 
 export function renderSimplexPollText(params: {
@@ -43,6 +46,18 @@ export function renderSimplexPollText(params: {
   return lines.join("\n").trim();
 }
 
+function normalizeOutboundChatRef(to: string): string {
+  const parsed = parseSimplexExplicitTarget(to);
+  if (parsed) {
+    return parsed.to;
+  }
+  const trimmed = to.trim();
+  if (!trimmed || trimmed.startsWith("@") || trimmed.startsWith("#") || trimmed.startsWith("!")) {
+    return trimmed;
+  }
+  return `@${trimmed}`;
+}
+
 export function buildSimplexOutbound(): NonNullable<
   ChannelPlugin<ResolvedSimplexAccount>["outbound"]
 > {
@@ -69,10 +84,11 @@ export function buildSimplexOutbound(): NonNullable<
     sendPayload: async ({ cfg, to, payload, accountId, replyToId }) => {
       const account = resolveSimplexAccount({ cfg, accountId });
       assertSimplexOutboundAccountReady(account);
+      const chatRef = normalizeOutboundChatRef(to);
       const result = await buildAndSendSimplexMessages({
         cfg,
         account,
-        chatRef: to,
+        chatRef,
         text: payload.text,
         mediaUrls: payload.mediaUrls,
         mediaUrl: payload.mediaUrl,
@@ -82,7 +98,7 @@ export function buildSimplexOutbound(): NonNullable<
       return {
         channel: SIMPLEX_CHANNEL_ID,
         messageId: result.messageId ?? "unknown",
-        chatId: to,
+        chatId: chatRef,
         meta: {
           receipt: result.receipt,
           ttl: account.config.messageTtlSeconds ?? null,
@@ -94,16 +110,17 @@ export function buildSimplexOutbound(): NonNullable<
       sendText: async ({ cfg, to, text, accountId, replyToId }) => {
         const account = resolveSimplexAccount({ cfg, accountId });
         assertSimplexOutboundAccountReady(account);
+        const chatRef = normalizeOutboundChatRef(to);
         const result = await buildAndSendSimplexMessages({
           cfg,
           account,
-          chatRef: to,
+          chatRef,
           text,
           replyToId,
         });
         return {
           messageId: result.messageId ?? "unknown",
-          chatId: to,
+          chatId: chatRef,
           meta: { receipt: result.receipt, ttl: account.config.messageTtlSeconds ?? null },
         };
       },
@@ -113,17 +130,18 @@ export function buildSimplexOutbound(): NonNullable<
         }
         const account = resolveSimplexAccount({ cfg, accountId });
         assertSimplexOutboundAccountReady(account);
+        const chatRef = normalizeOutboundChatRef(to);
         const result = await buildAndSendSimplexMessages({
           cfg,
           account,
-          chatRef: to,
+          chatRef,
           text,
           mediaUrl,
           replyToId,
         });
         return {
           messageId: result.messageId ?? "unknown",
-          chatId: to,
+          chatId: chatRef,
           meta: {
             mediaUrl,
             receipt: result.receipt,
@@ -134,12 +152,13 @@ export function buildSimplexOutbound(): NonNullable<
       sendPoll: async ({ cfg, to, poll, accountId }) => {
         const account = resolveSimplexAccount({ cfg, accountId });
         assertSimplexOutboundAccountReady(account);
+        const chatRef = normalizeOutboundChatRef(to);
         const normalized = normalizePollInput(poll);
         const text = renderSimplexPollText(normalized);
-        const result = await buildAndSendSimplexMessages({ cfg, account, chatRef: to, text });
+        const result = await buildAndSendSimplexMessages({ cfg, account, chatRef, text });
         return {
           messageId: result.messageId ?? "unknown",
-          chatId: to,
+          chatId: chatRef,
           meta: { receipt: result.receipt, ttl: account.config.messageTtlSeconds ?? null },
         };
       },

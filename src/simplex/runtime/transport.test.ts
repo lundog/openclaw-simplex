@@ -42,7 +42,8 @@ const registeredAccounts: Array<{ account: ResolvedSimplexAccount; client: Simpl
 
 function account(
   accountId = "default",
-  wsUrl = `ws://127.0.0.1:5225/${accountId}`
+  wsUrl = `ws://127.0.0.1:5225/${accountId}`,
+  commandTimeoutMs?: number
 ): ResolvedSimplexAccount {
   return {
     accountId,
@@ -54,7 +55,7 @@ function account(
     wsHost: "127.0.0.1",
     wsPort: 5225,
     config: {
-      connection: { wsUrl },
+      connection: { wsUrl, commandTimeoutMs },
     },
   };
 }
@@ -106,6 +107,23 @@ describe("simplex runtime transport", () => {
 
     expect(result).toBe("active");
     expect(clientMock.constructed).toBe(0);
+  });
+
+  it("does not reuse an active monitor client with a different command timeout", async () => {
+    const wsUrl = "ws://127.0.0.1:5225";
+    const monitored = account("alpha", wsUrl, 20_000);
+    const alias = account("alias", wsUrl, 5_000);
+    const client = activeClient("active");
+    registeredAccounts.push({ account: monitored, client });
+    await registerActiveSimplexClient(monitored, client);
+
+    const result = await withSimplexClient({
+      account: alias,
+      run: async (runtimeClient) => (runtimeClient as unknown as { source: string }).source,
+    });
+
+    expect(result).toBe("constructed");
+    expect(clientMock.constructed).toBe(1);
   });
 
   it("does not unregister a newer active client with an older handle", async () => {

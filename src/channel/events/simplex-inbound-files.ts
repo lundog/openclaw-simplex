@@ -34,7 +34,12 @@ export type PendingInboundFile = {
   statusSink?: (patch: Partial<ChannelAccountSnapshot>) => void;
 };
 
-const pendingFiles = new Map<string, PendingInboundFile>();
+type QueuedPendingInboundFile = {
+  pending: PendingInboundFile;
+  timeout: ReturnType<typeof setTimeout>;
+};
+
+const pendingFiles = new Map<string, QueuedPendingInboundFile>();
 
 function pendingKey(accountId: string, fileId: number): string {
   return `${accountId}:${fileId}`;
@@ -67,25 +72,34 @@ export function queuePendingFile(params: {
   fileId: number;
 }): void {
   const { pending, accountId, fileId } = params;
-  pendingFiles.set(pendingKey(accountId, fileId), pending);
-  setTimeout(() => {
-    const key = pendingKey(accountId, fileId);
+  const key = pendingKey(accountId, fileId);
+  const previous = pendingFiles.get(key);
+  if (previous) {
+    clearTimeout(previous.timeout);
+  }
+  const timeout = setTimeout(() => {
     const current = pendingFiles.get(key);
     if (!current) {
       return;
     }
     pendingFiles.delete(key);
-    void current.client.cancelFile(fileId).catch((err) => {
-      current.runtime.error?.(`[${accountId}] SimpleX file timeout cancel failed: ${String(err)}`);
+    void current.pending.client.cancelFile(fileId).catch((err) => {
+      current.pending.runtime.error?.(
+        `[${accountId}] SimpleX file timeout cancel failed: ${String(err)}`
+      );
     });
     void dispatchInbound({
-      pending: current,
+      pending: current.pending,
       mediaPath: undefined,
       mediaType: undefined,
     }).catch((err) => {
-      current.runtime.error?.(`[${accountId}] SimpleX pending file timeout: ${String(err)}`);
+      current.pending.runtime.error?.(
+        `[${accountId}] SimpleX pending file timeout: ${String(err)}`
+      );
     });
   }, PENDING_FILE_TIMEOUT_MS);
+  timeout.unref?.();
+  pendingFiles.set(key, { pending, timeout });
 }
 
 export async function finalizePendingFile(params: {
@@ -93,11 +107,13 @@ export async function finalizePendingFile(params: {
   fileId: number;
   filePath?: string;
 }): Promise<void> {
-  const pending = pendingFiles.get(pendingKey(params.accountId, params.fileId));
-  if (!pending) {
+  const queued = pendingFiles.get(pendingKey(params.accountId, params.fileId));
+  if (!queued) {
     return;
   }
   pendingFiles.delete(pendingKey(params.accountId, params.fileId));
+  clearTimeout(queued.timeout);
+  const { pending } = queued;
   const mediaPath = params.filePath?.trim() || undefined;
   let mediaType: string | undefined;
   if (mediaPath) {
@@ -146,6 +162,7 @@ export async function dispatchInbound(params: {
     ctx: ctxPayload,
     cfg: pending.cfg,
     dispatcherOptions: {
+      beforeDeliver: (payload) => payload,
       deliver: async (payload, info) => {
         const hasMedia =
           Boolean(payload.mediaUrl) ||

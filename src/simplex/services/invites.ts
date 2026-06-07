@@ -46,7 +46,13 @@ export async function listSimplexInvites(
     logger: params.logger,
     run: async (userId, client) => {
       const [address, contacts] = await Promise.all([
-        client.getAddress(),
+        client.getAddress().catch((err) => ({
+          link: null,
+          response: {
+            type: "addressLookupFailed",
+            error: err instanceof Error ? err.message : String(err),
+          },
+        })),
         client.listContacts(userId),
       ]);
       return {
@@ -79,8 +85,12 @@ export async function revokeSimplexInvite(
   const revoked = await withActiveSimplexUser({
     account,
     logger: params.logger,
-    run: async (_userId, api) => {
-      await api.deleteAddress();
+    run: async (_userId, client) => {
+      const current = await client.getAddress().catch(() => ({ link: null }));
+      if (!current.link) {
+        return false;
+      }
+      await client.deleteAddress();
       return true;
     },
   });

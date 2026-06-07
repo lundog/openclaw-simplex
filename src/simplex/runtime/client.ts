@@ -54,6 +54,10 @@ type CommandResponsePayload = {
   [key: string]: unknown;
 };
 
+type SimplexCommandOptions = {
+  timeoutMs?: number;
+};
+
 function unwrapResponse(response: SimplexRuntimeResponse): CommandResponsePayload {
   const resp = response.resp as CommandResponsePayload | undefined;
   const commandError = resolveSimplexCommandError(resp);
@@ -94,6 +98,7 @@ export class SimplexClient {
     this.ws = new SimplexWsClient({
       url: params.account.wsUrl,
       connectTimeoutMs: params.account.config.connection?.connectTimeoutMs,
+      commandTimeoutMs: params.account.config.connection?.commandTimeoutMs,
       logger: params.logger,
     });
   }
@@ -118,8 +123,11 @@ export class SimplexClient {
     await this.ws.close();
   }
 
-  async runCommand(command: string): Promise<CommandResponsePayload> {
-    return unwrapResponse(await this.ws.sendCommand(command));
+  async runCommand(
+    command: string,
+    options: SimplexCommandOptions = {}
+  ): Promise<CommandResponsePayload> {
+    return unwrapResponse(await this.ws.sendCommand(command, options.timeoutMs));
   }
 
   async sendMessages(params: {
@@ -205,35 +213,44 @@ export class SimplexClient {
     return await this.runCommand("/delete_address");
   }
 
-  async getActiveUser(): Promise<unknown> {
-    const payload = await this.runCommand(buildShowActiveUserCommand());
+  async getActiveUser(options: SimplexCommandOptions = {}): Promise<unknown> {
+    const payload = await this.runCommand(buildShowActiveUserCommand(), options);
     return firstObjectField(payload, ["user", "activeUser"]);
   }
 
-  async listUsers(): Promise<unknown[]> {
-    const payload = await this.runCommand(buildListUsersCommand());
+  async listUsers(options: SimplexCommandOptions = {}): Promise<unknown[]> {
+    const payload = await this.runCommand(buildListUsersCommand(), options);
     return firstArrayField(payload, ["users"]);
   }
 
-  async listContacts(userId: number | string): Promise<unknown[]> {
-    const payload = await this.runCommand(buildListContactsCommand(userId));
+  async listContacts(
+    userId: number | string,
+    options: SimplexCommandOptions = {}
+  ): Promise<unknown[]> {
+    const payload = await this.runCommand(buildListContactsCommand(userId), options);
     return firstArrayField(payload, ["contacts"]);
   }
 
-  async listGroups(params: {
-    userId: number | string;
-    contactId?: number | string | null;
-    search?: string | null;
-  }): Promise<unknown[]> {
-    const payload = await this.runCommand(buildListGroupsCommand(params));
+  async listGroups(
+    params: {
+      userId: number | string;
+      contactId?: number | string | null;
+      search?: string | null;
+    },
+    options: SimplexCommandOptions = {}
+  ): Promise<unknown[]> {
+    const payload = await this.runCommand(buildListGroupsCommand(params), options);
     return firstArrayField(payload, ["groups"]);
   }
 
-  async listGroupMembers(params: {
-    groupId: number | string;
-    search?: string | null;
-  }): Promise<unknown[]> {
-    const payload = await this.runCommand(buildListGroupMembersCommand(params));
+  async listGroupMembers(
+    params: {
+      groupId: number | string;
+      search?: string | null;
+    },
+    options: SimplexCommandOptions = {}
+  ): Promise<unknown[]> {
+    const payload = await this.runCommand(buildListGroupMembersCommand(params), options);
     return firstArrayField(payload, ["members", "groupMembers"]);
   }
 

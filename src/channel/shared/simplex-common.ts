@@ -37,26 +37,40 @@ export function stripLeadingAt(value: string): string {
   return trimmed.startsWith("@") ? trimmed.slice(1).trim() : trimmed;
 }
 
-function readPrefixedSimplexTarget(raw: string): { value: string; kind: SimplexTargetKind } {
+function readPrefixedSimplexTarget(raw: string): {
+  value: string;
+  kind: SimplexTargetKind;
+  hadProviderPrefix: boolean;
+} {
   const strippedProvider = stripSimplexPrefix(raw);
+  const hadProviderPrefix = strippedProvider !== raw.trim();
   const lower = strippedProvider.toLowerCase();
   if (lower.startsWith("group:")) {
-    return { value: strippedProvider.slice("group:".length).trim(), kind: "group" };
+    return {
+      value: strippedProvider.slice("group:".length).trim(),
+      kind: "group",
+      hadProviderPrefix,
+    };
   }
   if (lower.startsWith("channel:")) {
-    return { value: strippedProvider.slice("channel:".length).trim(), kind: "channel" };
+    return {
+      value: strippedProvider.slice("channel:".length).trim(),
+      kind: "channel",
+      hadProviderPrefix,
+    };
   }
   if (lower.startsWith("contact:") || lower.startsWith("user:") || lower.startsWith("member:")) {
     return {
       value: strippedProvider.slice(strippedProvider.indexOf(":") + 1).trim(),
       kind: "direct",
+      hadProviderPrefix,
     };
   }
-  return { value: strippedProvider, kind: null };
+  return { value: strippedProvider, kind: null, hadProviderPrefix };
 }
 
 export function parseSimplexExplicitTarget(raw: string): SimplexExplicitTarget | null {
-  const { value, kind } = readPrefixedSimplexTarget(raw);
+  const { value, kind, hadProviderPrefix } = readPrefixedSimplexTarget(raw);
   if (!value) {
     return null;
   }
@@ -80,6 +94,9 @@ export function parseSimplexExplicitTarget(raw: string): SimplexExplicitTarget |
   }
   if (kind === "channel") {
     return { to: value.startsWith("!") ? value : `!${value}`, chatType: "channel" };
+  }
+  if (hadProviderPrefix) {
+    return { to: `@${value}`, chatType: "direct" };
   }
   return null;
 }
@@ -117,6 +134,18 @@ export function inferSimplexTargetChatType(
   raw: string
 ): SimplexExplicitTarget["chatType"] | undefined {
   return parseSimplexExplicitTarget(raw)?.chatType;
+}
+
+export function looksLikeSimplexExplicitTarget(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (parseSimplexExplicitTarget(trimmed)) {
+    return true;
+  }
+  const strippedProvider = stripSimplexPrefix(trimmed);
+  return strippedProvider !== trimmed && strippedProvider.trim().length > 0;
 }
 
 export function formatSimplexTargetDisplay(params: {

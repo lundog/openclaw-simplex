@@ -260,6 +260,9 @@ openclaw simplex invite create --qr
 # List current invite and address state
 openclaw simplex invite list
 
+# Revoke the current address/invite link
+openclaw simplex invite revoke
+
 # Show the current address link
 openclaw simplex address show --qr
 

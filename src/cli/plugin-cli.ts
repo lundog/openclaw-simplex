@@ -174,7 +174,7 @@ async function runAddressShowCli(api: OpenClawPluginApi, opts: InviteCliOptions)
   }
 }
 
-async function runAddressRevokeCli(api: OpenClawPluginApi, opts: InviteCliOptions): Promise<void> {
+async function runInviteRevokeCli(api: OpenClawPluginApi, opts: InviteCliOptions): Promise<void> {
   const result = await revokeSimplexInvite({
     cfg: api.config,
     accountId: readOptionalAccountId(opts.accountId),
@@ -465,6 +465,14 @@ export function registerSimplexCliMetadata(api: OpenClawPluginApi): void {
           await runInviteListCli(api, opts);
         });
 
+      invite
+        .command("revoke")
+        .description("Revoke the current address/invite link")
+        .option("--account-id <accountId>", "Use a specific SimpleX account")
+        .action(async (opts: InviteCliOptions) => {
+          await runInviteRevokeCli(api, opts);
+        });
+
       const address = command.command("address").description("SimpleX address helpers");
 
       address
@@ -490,7 +498,7 @@ export function registerSimplexCliMetadata(api: OpenClawPluginApi): void {
         .description("Revoke the current address link")
         .option("--account-id <accountId>", "Use a specific SimpleX account")
         .action(async (opts: InviteCliOptions) => {
-          await runAddressRevokeCli(api, opts);
+          await runInviteRevokeCli(api, opts);
         });
 
       const runtime = command.command("runtime").description("SimpleX runtime diagnostics");

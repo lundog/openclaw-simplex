@@ -60,6 +60,12 @@ export async function buildAndSendSimplexMessages(params: {
   replyToId?: string | number | null;
   ttl?: number;
   liveMessage?: boolean;
+  send?: (params: {
+    chatRef: string;
+    composedMessages: SimplexComposedMessage[];
+    ttl?: number;
+    liveMessage?: boolean;
+  }) => Promise<unknown[]>;
 }): Promise<{ messageId?: string; receipt?: MessageReceipt }> {
   const quotedItemId =
     params.replyToId === undefined || params.replyToId === null
@@ -79,19 +85,16 @@ export async function buildAndSendSimplexMessages(params: {
     composedMessages,
     ttl: params.ttl ?? params.account.config.messageTtlSeconds,
     liveMessage: params.liveMessage,
-    send: ({ chatRef, composedMessages: messages, ttl, liveMessage }) =>
-      withSimplexClient({
-        account: params.account,
-        run: (client) =>
-          client.sendMessages({ chatRef, composedMessages: messages, ttl, liveMessage }),
-      }),
+    send:
+      params.send ??
+      (({ chatRef, composedMessages: messages, ttl, liveMessage }) =>
+        withSimplexClient({
+          account: params.account,
+          run: (client) =>
+            client.sendMessages({ chatRef, composedMessages: messages, ttl, liveMessage }),
+        })),
   });
 }
-
-export type SimplexLiveTextUpdate = {
-  text: string;
-  final?: boolean;
-};
 
 export type SimplexLiveReplyPayload = {
   text?: string;
@@ -266,86 +269,4 @@ export function createSimplexLiveReplyController(params: {
       return await updateText(text, { final: true });
     },
   };
-}
-
-export async function sendSimplexLiveText(params: {
-  cfg: OpenClawConfig;
-  account: ResolvedSimplexAccount;
-  chatRef: string;
-  updates: AsyncIterable<SimplexLiveTextUpdate>;
-  replyToId?: string | number | null;
-}): Promise<{ messageId?: string; receipt?: MessageReceipt; fallback: boolean }> {
-  const live = resolveSimplexLiveStreamingConfig(params.account);
-  if (!live.enabled) {
-    let finalText = "";
-    for await (const update of params.updates) {
-      finalText = update.text;
-    }
-    const sent = await buildAndSendSimplexMessages({
-      cfg: params.cfg,
-      account: params.account,
-      chatRef: params.chatRef,
-      text: finalText,
-      replyToId: params.replyToId,
-    });
-    return { ...sent, fallback: true };
-  }
-
-  let messageId: string | undefined;
-  let receipt: MessageReceipt | undefined;
-  let lastSent = "";
-  let lastSentAt = 0;
-
-  for await (const update of params.updates) {
-    const rawText = update.text;
-    const text = update.final || !live.wordBoundary ? rawText : trimToWordBoundary(rawText);
-    if (!text) {
-      continue;
-    }
-    const now = Date.now();
-    const enoughChars = Math.abs(text.length - lastSent.length) >= live.minChars;
-    const enoughTime = now - lastSentAt >= live.throttleMs;
-    if (!update.final && messageId && (!enoughChars || !enoughTime)) {
-      continue;
-    }
-
-    if (!messageId) {
-      const sent = await buildAndSendSimplexMessages({
-        cfg: params.cfg,
-        account: params.account,
-        chatRef: params.chatRef,
-        text,
-        replyToId: params.replyToId,
-        liveMessage: true,
-      });
-      messageId = sent.messageId;
-      receipt = sent.receipt;
-    } else {
-      const existingMessageId = messageId;
-      const composed = await buildComposedMessages({
-        cfg: params.cfg,
-        accountId: params.account.accountId,
-        text,
-      });
-      const updatedMessage = composed[0];
-      if (!updatedMessage) {
-        continue;
-      }
-      await withSimplexClient({
-        account: params.account,
-        run: (client) =>
-          client.editMessage({
-            chatRef: params.chatRef,
-            messageId: existingMessageId,
-            updatedMessage,
-            liveMessage: !update.final,
-          }),
-      });
-    }
-
-    lastSent = text;
-    lastSentAt = now;
-  }
-
-  return { messageId, receipt, fallback: false };
 }

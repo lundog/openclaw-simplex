@@ -2,15 +2,15 @@ import type { ChannelAccountSnapshot } from "openclaw/plugin-sdk/channel-contrac
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { SIMPLEX_CHANNEL_ID } from "../../constants.js";
-import { formatSimplexChatRef, parseSimplexNumericId } from "../../simplex/runtime/api.js";
+import { formatSimplexChatRef } from "../../simplex/runtime/api.js";
 import { SimplexClient } from "../../simplex/runtime/client.js";
 import { recordSimplexContactRequest } from "../../simplex/state/contact-requests.js";
 import { markSimplexEventSeen } from "../../simplex/state/event-dedupe.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import type { SimplexChatItem } from "../../types/events.js";
 import type { SimplexChatEvent } from "../../types/simplex.js";
-import { buildComposedMessages, resolveSimplexMediaMaxBytes } from "../media/simplex-media.js";
-import { sendSimplexComposedMessages } from "../messaging/simplex-send.js";
+import { resolveSimplexMediaMaxBytes } from "../media/simplex-media.js";
+import { buildAndSendSimplexMessages } from "../messaging/simplex-send.js";
 import { getSimplexRuntime } from "../runtime.js";
 import { connectSimplexWithRetry } from "../transport/simplex-connect.js";
 import {
@@ -37,45 +37,6 @@ export type SimplexMonitorOpts = {
   abortSignal: AbortSignal;
   statusSink?: (patch: Partial<ChannelAccountSnapshot>) => void;
 };
-
-async function sendSimplexPayload(params: {
-  client: SimplexClient;
-  chatRef: string;
-  cfg: OpenClawConfig;
-  account: ResolvedSimplexAccount;
-  accountId: string;
-  payload: {
-    text?: string;
-    mediaUrl?: string;
-    mediaUrls?: string[];
-    audioAsVoice?: boolean;
-    replyToId?: string | number | null;
-  };
-}): Promise<{ messageId?: string }> {
-  const quotedItemId =
-    params.payload.replyToId === undefined || params.payload.replyToId === null
-      ? undefined
-      : parseSimplexNumericId(params.payload.replyToId);
-  const composedMessages = await buildComposedMessages({
-    cfg: params.cfg,
-    accountId: params.accountId,
-    text: params.payload.text,
-    mediaUrl: params.payload.mediaUrl,
-    mediaUrls: params.payload.mediaUrls,
-    audioAsVoice: params.payload.audioAsVoice,
-    quotedItemId: quotedItemId ?? undefined,
-  });
-  if (composedMessages.length === 0) {
-    return {};
-  }
-  return await sendSimplexComposedMessages({
-    chatRef: params.chatRef,
-    composedMessages,
-    ttl: params.account.config.messageTtlSeconds,
-    send: ({ chatRef, composedMessages: messages, ttl }) =>
-      params.client.sendMessages({ chatRef, composedMessages: messages, ttl }),
-  });
-}
 
 export async function startSimplexMonitor(params: SimplexMonitorOpts): Promise<{
   client: SimplexClient;
@@ -297,16 +258,14 @@ async function handleSimplexEvent(params: {
       normalizedSenderId,
       routeAgentId: route.agentId,
       replyToPairingRequest: async (text) => {
-        await sendSimplexPayload({
-          client,
-          chatRef,
+        await buildAndSendSimplexMessages({
           cfg,
           account,
-          accountId: account.accountId,
-          payload: {
-            text,
-            replyToId: currentMessageId,
-          },
+          chatRef,
+          text,
+          replyToId: currentMessageId,
+          send: ({ chatRef, composedMessages, ttl, liveMessage }) =>
+            client.sendMessages({ chatRef, composedMessages, ttl, liveMessage }),
         });
         statusSink?.({ lastOutboundAt: Date.now() });
       },
@@ -346,13 +305,17 @@ async function handleSimplexEvent(params: {
       runtime,
       client,
       sendPayload: async (payload) => {
-        await sendSimplexPayload({
-          client,
-          chatRef,
+        await buildAndSendSimplexMessages({
           cfg,
           account,
-          accountId: account.accountId,
-          payload: { ...payload, replyToId: currentMessageId },
+          chatRef,
+          text: payload.text,
+          mediaUrl: payload.mediaUrl,
+          mediaUrls: payload.mediaUrls,
+          audioAsVoice: payload.audioAsVoice,
+          replyToId: currentMessageId,
+          send: ({ chatRef, composedMessages, ttl, liveMessage }) =>
+            client.sendMessages({ chatRef, composedMessages, ttl, liveMessage }),
         });
       },
       statusSink,

@@ -3,9 +3,12 @@ import type { ChannelDirectoryEntry } from "openclaw/plugin-sdk/directory-runtim
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { resolveSimplexAccount } from "../../config/accounts.js";
 import { parseSimplexNumericId } from "../../simplex/runtime/api.js";
+import type { SimplexClient } from "../../simplex/runtime/client.js";
 import { withSimplexClient } from "../../simplex/runtime/transport.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import { stripSimplexPrefix } from "../shared/simplex-common.js";
+
+const DEFAULT_DIRECTORY_TIMEOUT_MS = 5_000;
 
 type SimplexDirectoryParams = {
   cfg: OpenClawConfig;
@@ -27,6 +30,14 @@ type ActiveUserInfo = {
   raw?: unknown;
 };
 
+function resolveDirectoryTimeoutMs(account: ResolvedSimplexAccount): number {
+  return (
+    account.config.connection?.directoryTimeoutMs ??
+    account.config.connection?.commandTimeoutMs ??
+    DEFAULT_DIRECTORY_TIMEOUT_MS
+  );
+}
+
 function toId(value: unknown): string | undefined {
   if (typeof value === "number" && Number.isFinite(value)) {
     return String(value);
@@ -40,6 +51,11 @@ function toId(value: unknown): string | undefined {
 
 function normalizeQuery(query?: string | null): string {
   return (query ?? "").trim().toLowerCase();
+}
+
+function isEmptyRuntimeListError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.trim().toLowerCase() === "failed reading: empty";
 }
 
 function applyDirectoryFilter(params: {
@@ -202,24 +218,31 @@ function readDirectoryIdCandidate(query?: string | null): string | null {
   return parseSimplexNumericId(stripped) === null ? null : stripped;
 }
 
+async function readActiveUserInfoFromClient(params: {
+  client: SimplexClient;
+  timeoutMs: number;
+}): Promise<ActiveUserInfo | null> {
+  const user = (await params.client.getActiveUser({
+    timeoutMs: params.timeoutMs,
+  })) as Record<string, unknown> | undefined;
+  if (!user || typeof user !== "object") {
+    return null;
+  }
+  const profile = (user.profile as Record<string, unknown> | undefined) ?? {};
+  const userId = toId(user.userId ?? user.id ?? profile.userId);
+  const displayName = toId(profile.displayName) ?? toId(profile.fullName) ?? toId(user.displayName);
+  return { userId, displayName, raw: user };
+}
+
 async function fetchActiveUserInfo(
   account: ResolvedSimplexAccount,
   runtime: RuntimeEnv
 ): Promise<ActiveUserInfo | null> {
+  const timeoutMs = resolveDirectoryTimeoutMs(account);
   try {
     return await withSimplexClient({
       account,
-      run: async (client) => {
-        const user = (await client.getActiveUser()) as Record<string, unknown> | undefined;
-        if (!user || typeof user !== "object") {
-          return null;
-        }
-        const profile = (user.profile as Record<string, unknown> | undefined) ?? {};
-        const userId = toId(user.userId ?? user.id ?? profile.userId);
-        const displayName =
-          toId(profile.displayName) ?? toId(profile.fullName) ?? toId(user.displayName);
-        return { userId, displayName, raw: user };
-      },
+      run: async (client) => await readActiveUserInfoFromClient({ client, timeoutMs }),
     });
   } catch (err) {
     runtime.error?.(`simplex: failed to read active user: ${String(err)}`);
@@ -233,20 +256,26 @@ async function listContactsLive(params: {
   query?: string | null;
   limit?: number | null;
 }): Promise<ChannelDirectoryEntry[]> {
-  const activeUser = await fetchActiveUserInfo(params.account, params.runtime);
-  const activeUserId = activeUser?.userId;
-  if (!activeUserId) {
-    return [];
-  }
-  const userId = parseSimplexNumericId(activeUserId);
-  if (userId === null) {
-    return [];
-  }
+  const timeoutMs = resolveDirectoryTimeoutMs(params.account);
   return await withSimplexClient({
     account: params.account,
     run: async (client) => {
+      const activeUser = await readActiveUserInfoFromClient({ client, timeoutMs });
+      const activeUserId = activeUser?.userId;
+      if (!activeUserId) {
+        return [];
+      }
+      const userId = parseSimplexNumericId(activeUserId);
+      if (userId === null) {
+        return [];
+      }
       const query = normalizeSimplexDirectoryQuery(params.query);
-      const contacts = await client.listContacts(userId);
+      const contacts = await client.listContacts(userId, { timeoutMs }).catch((err): unknown[] => {
+        if (isEmptyRuntimeListError(err)) {
+          return [];
+        }
+        throw err;
+      });
       const mapped = contacts.map(mapContactEntry).filter(isDirectoryEntry);
       return applyDirectoryFilter({
         entries: mapped,
@@ -263,20 +292,28 @@ async function listGroupsLive(params: {
   query?: string | null;
   limit?: number | null;
 }): Promise<ChannelDirectoryEntry[]> {
-  const activeUser = await fetchActiveUserInfo(params.account, params.runtime);
-  const activeUserId = activeUser?.userId;
-  if (!activeUserId) {
-    return [];
-  }
-  const userId = parseSimplexNumericId(activeUserId);
-  if (userId === null) {
-    return [];
-  }
+  const timeoutMs = resolveDirectoryTimeoutMs(params.account);
   return await withSimplexClient({
     account: params.account,
     run: async (client) => {
+      const activeUser = await readActiveUserInfoFromClient({ client, timeoutMs });
+      const activeUserId = activeUser?.userId;
+      if (!activeUserId) {
+        return [];
+      }
+      const userId = parseSimplexNumericId(activeUserId);
+      if (userId === null) {
+        return [];
+      }
       const query = normalizeSimplexDirectoryQuery(params.query);
-      const groups = await client.listGroups({ userId, search: query });
+      const groups = await client
+        .listGroups({ userId, search: query }, { timeoutMs })
+        .catch((err): unknown[] => {
+          if (isEmptyRuntimeListError(err)) {
+            return [];
+          }
+          throw err;
+        });
       const mapped = groups.map(mapGroupEntry).filter(isDirectoryEntry);
       return applyDirectoryFilter({
         entries: mapped,
@@ -297,10 +334,18 @@ async function listGroupMembersLive(params: {
   if (groupId === null) {
     return [];
   }
+  const timeoutMs = resolveDirectoryTimeoutMs(params.account);
   return await withSimplexClient({
     account: params.account,
     run: async (client) => {
-      const members = await client.listGroupMembers({ groupId });
+      const members = await client
+        .listGroupMembers({ groupId }, { timeoutMs })
+        .catch((err): unknown[] => {
+          if (isEmptyRuntimeListError(err)) {
+            return [];
+          }
+          throw err;
+        });
       return applyDirectoryFilter({
         entries: members.map(mapMemberEntry).filter(isDirectoryEntry),
         limit: params.limit,

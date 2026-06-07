@@ -16,6 +16,7 @@ export type SimplexConnectionState = {
 type SimplexWsClientOptions = {
   url: string;
   connectTimeoutMs?: number;
+  commandTimeoutMs?: number;
   maxPayloadBytes?: number;
   logger?: SimplexLogger;
 };
@@ -29,6 +30,7 @@ type PendingCommand = {
 export class SimplexWsClient {
   private readonly url: string;
   private readonly connectTimeoutMs: number;
+  private readonly commandTimeoutMs: number;
   private readonly maxPayloadBytes: number;
   private readonly logger?: SimplexLogger;
   private ws: WebSocket | null = null;
@@ -47,6 +49,7 @@ export class SimplexWsClient {
   constructor(options: SimplexWsClientOptions) {
     this.url = options.url;
     this.connectTimeoutMs = options.connectTimeoutMs ?? 15_000;
+    this.commandTimeoutMs = options.commandTimeoutMs ?? 20_000;
     this.maxPayloadBytes = options.maxPayloadBytes ?? 16 * 1024 * 1024;
     this.logger = options.logger;
   }
@@ -182,7 +185,10 @@ export class SimplexWsClient {
     this.closing = false;
   }
 
-  async sendCommand(cmd: string, timeoutMs = 20_000): Promise<SimplexRuntimeResponse> {
+  async sendCommand(
+    cmd: string,
+    timeoutMs = this.commandTimeoutMs
+  ): Promise<SimplexRuntimeResponse> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       await this.connect();
     }

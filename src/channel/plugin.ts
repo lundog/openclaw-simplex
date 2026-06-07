@@ -42,6 +42,7 @@ import { simplexSetupAdapter } from "./setup.js";
 import {
   formatSimplexTargetDisplay,
   inferSimplexTargetChatType,
+  looksLikeSimplexExplicitTarget,
   parseSimplexExplicitTarget,
   resolveSimplexGroupRequireMention,
   resolveSimplexGroupToolPolicy,
@@ -178,8 +179,8 @@ export const simplexPlugin: SimplexPlugin = {
     inferTargetChatType: ({ to }) => inferSimplexTargetChatType(to),
     formatTargetDisplay: (params) => formatSimplexTargetDisplay(params),
     targetResolver: {
-      looksLikeId: (input) => input.trim().startsWith("@") || input.trim().startsWith("#"),
-      hint: "@<contactId>|#<groupId>|contact:<id>|group:<id>",
+      looksLikeId: (input) => looksLikeSimplexExplicitTarget(input),
+      hint: "@<contactId>|#<groupId>|contact:<id>|group:<id>|!<channelId>",
     },
   },
   agentPrompt: {

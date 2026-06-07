@@ -2,14 +2,15 @@ import type { ResolvedSimplexAccount } from "../../types/config.js";
 import type { SimplexLogger } from "../../types/simplex.js";
 import { SimplexClient } from "./client.js";
 
-type SharedSimplexClientKey = `${string}|${number}`;
+type SharedSimplexClientKey = `${string}|${number}|${number}`;
 
 const activeSimplexClients = new Map<string, SimplexClient>();
 const activeSimplexClientsByKey = new Map<SharedSimplexClientKey, SimplexClient>();
 
 function sharedClientKey(account: ResolvedSimplexAccount): SharedSimplexClientKey {
   const timeoutMs = account.config.connection?.connectTimeoutMs ?? 15_000;
-  return `${account.wsUrl}|${timeoutMs}`;
+  const commandTimeoutMs = account.config.connection?.commandTimeoutMs ?? 20_000;
+  return `${account.wsUrl}|${timeoutMs}|${commandTimeoutMs}`;
 }
 
 export async function registerActiveSimplexClient(

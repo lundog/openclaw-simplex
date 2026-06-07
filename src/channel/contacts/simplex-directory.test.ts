@@ -6,11 +6,25 @@ const simplexApiMock = vi.hoisted(() => ({
   contacts: [] as unknown[],
   groups: [] as unknown[],
   members: [] as unknown[],
+  withClientCalls: 0,
+  getActiveUser: vi.fn(async () => ({
+    userId: 1,
+    profile: { displayName: "OpenClaw SimpleX" },
+  })),
+  listContacts: vi.fn(async () => [] as unknown[]),
   listGroups: vi.fn(async (_params?: unknown) => [] as unknown[]),
   reset() {
     this.contacts = [];
     this.groups = [];
     this.members = [];
+    this.withClientCalls = 0;
+    this.getActiveUser.mockImplementation(async () => ({
+      userId: 1,
+      profile: { displayName: "OpenClaw SimpleX" },
+    }));
+    this.getActiveUser.mockClear();
+    this.listContacts.mockImplementation(async () => this.contacts);
+    this.listContacts.mockClear();
     this.listGroups.mockImplementation(async () => this.groups);
     this.listGroups.mockClear();
   },
@@ -18,12 +32,10 @@ const simplexApiMock = vi.hoisted(() => ({
 
 vi.mock("../../simplex/runtime/transport.js", () => ({
   withSimplexClient: async <T>(params: { run: (client: unknown) => Promise<T> }): Promise<T> => {
+    simplexApiMock.withClientCalls += 1;
     const client = {
-      getActiveUser: vi.fn(async () => ({
-        userId: 1,
-        profile: { displayName: "OpenClaw SimpleX" },
-      })),
-      listContacts: vi.fn(async () => simplexApiMock.contacts),
+      getActiveUser: simplexApiMock.getActiveUser,
+      listContacts: simplexApiMock.listContacts,
       listGroups: simplexApiMock.listGroups,
       listGroupMembers: vi.fn(async () => simplexApiMock.members),
     };
@@ -99,6 +111,15 @@ describe("simplex directory mapping", () => {
         name: "Ops",
       }),
     ]);
+    expect(simplexApiMock.withClientCalls).toBe(1);
+    expect(simplexApiMock.getActiveUser).toHaveBeenCalledTimes(1);
+    expect(simplexApiMock.listGroups).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats SimpleX empty group responses as an empty directory", async () => {
+    simplexApiMock.listGroups.mockRejectedValueOnce(new Error("Failed reading: empty"));
+
+    await expect(listSimplexDirectoryGroups({ cfg, runtime })).resolves.toEqual([]);
   });
 
   it("resolves provider-prefixed group ids without live group search", async () => {
@@ -113,23 +134,40 @@ describe("simplex directory mapping", () => {
     expect(simplexApiMock.listGroups).not.toHaveBeenCalled();
   });
 
-  it("resolves explicit targets without listing runtime groups", async () => {
+  it("resolves explicit group targets without listing runtime groups", async () => {
     await expect(
       resolveSimplexTargets({
         cfg,
         runtime,
         kind: "group",
-        inputs: ["openclaw-simplex:4"],
+        inputs: ["openclaw-simplex:4", "#5", "group:6", "simplex:7"],
       })
     ).resolves.toEqual([
-      {
-        input: "openclaw-simplex:4",
-        resolved: true,
-        id: "4",
-        note: "treated as explicit id",
-      },
+      { input: "openclaw-simplex:4", resolved: true, id: "4", note: "treated as explicit id" },
+      { input: "#5", resolved: true, id: "5", note: "treated as explicit id" },
+      { input: "group:6", resolved: true, id: "6", note: "treated as explicit id" },
+      { input: "simplex:7", resolved: true, id: "7", note: "treated as explicit id" },
     ]);
     expect(simplexApiMock.listGroups).not.toHaveBeenCalled();
+    expect(simplexApiMock.withClientCalls).toBe(0);
+  });
+
+  it("resolves explicit contact targets without listing runtime contacts", async () => {
+    await expect(
+      resolveSimplexTargets({
+        cfg,
+        runtime,
+        kind: "user",
+        inputs: ["@8", "contact:9", "user:10", "member:11"],
+      })
+    ).resolves.toEqual([
+      { input: "@8", resolved: true, id: "8", note: "treated as explicit id" },
+      { input: "contact:9", resolved: true, id: "9", note: "treated as explicit id" },
+      { input: "user:10", resolved: true, id: "10", note: "treated as explicit id" },
+      { input: "member:11", resolved: true, id: "11", note: "treated as explicit id" },
+    ]);
+    expect(simplexApiMock.listContacts).not.toHaveBeenCalled();
+    expect(simplexApiMock.withClientCalls).toBe(0);
   });
 
   it("maps group member payloads", async () => {

@@ -38,6 +38,8 @@ const SimplexConnectionSchema = z
     allowUnsafeRemoteWs: z.boolean().optional(),
     autoAcceptFiles: z.boolean().optional(),
     connectTimeoutMs: z.number().int().positive().optional(),
+    commandTimeoutMs: z.number().int().positive().optional(),
+    directoryTimeoutMs: z.number().int().positive().optional(),
   })
   .strict();
 

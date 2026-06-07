@@ -105,4 +105,30 @@ describe("simplex outbound presentation support", () => {
       chatId: "@alice",
     });
   });
+
+  it("normalizes routed direct targets before sending text", async () => {
+    const outbound = buildSimplexOutbound();
+
+    const result = await outbound.sendText?.({
+      cfg: {
+        channels: {
+          "openclaw-simplex": {
+            connection: { wsUrl: "ws://127.0.0.1:5225" },
+          },
+        },
+      },
+      to: "openclaw-simplex:4",
+      text: "hello",
+    });
+
+    expect(sendMocks.buildAndSendSimplexMessages).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatRef: "@4",
+        text: "hello",
+      })
+    );
+    expect(result).toMatchObject({
+      chatId: "@4",
+    });
+  });
 });

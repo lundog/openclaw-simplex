@@ -1,7 +1,12 @@
 import type { PluginRuntime } from "openclaw/plugin-sdk/runtime-store";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setSimplexRuntime } from "../runtime.js";
-import { dispatchInbound, type PendingInboundFile } from "./simplex-inbound-files.js";
+import {
+  dispatchInbound,
+  finalizePendingFile,
+  type PendingInboundFile,
+  queuePendingFile,
+} from "./simplex-inbound-files.js";
 
 const simplexClientMock = vi.hoisted(() => ({
   sendMessages: vi.fn(async () => [{ chatItem: { meta: { itemId: 123 } } }]),
@@ -15,6 +20,7 @@ vi.mock("../../simplex/runtime/transport.js", () => ({
 function installRuntime(
   dispatch: (params: {
     dispatcherOptions: {
+      beforeDeliver?: (payload: { text?: string }) => { text?: string } | null;
       deliver: (payload: { text?: string }, info: { kind: "block" | "final" }) => Promise<void>;
     };
     replyOptions?: {
@@ -70,6 +76,7 @@ function pending(sendPayload = vi.fn(async () => undefined)): PendingInboundFile
 
 describe("simplex inbound live replies", () => {
   afterEach(() => {
+    vi.useRealTimers();
     simplexClientMock.sendMessages.mockClear();
     simplexClientMock.editMessage.mockClear();
   });
@@ -78,6 +85,7 @@ describe("simplex inbound live replies", () => {
     const sendPayload = vi.fn(async () => undefined);
     installRuntime(async ({ dispatcherOptions, replyOptions }) => {
       expect(replyOptions?.disableBlockStreaming).toBe(true);
+      expect(dispatcherOptions.beforeDeliver?.({ text: "probe" })).toEqual({ text: "probe" });
       await replyOptions?.onPartialReply?.({ text: "hello" });
       await dispatcherOptions.deliver({ text: "hello world" }, { kind: "block" });
       await dispatcherOptions.deliver({ text: "hello world!" }, { kind: "final" });
@@ -102,5 +110,40 @@ describe("simplex inbound live replies", () => {
       2,
       expect.objectContaining({ messageId: "123", liveMessage: false })
     );
+  });
+
+  it("clears pending file timeout when the file completes", async () => {
+    vi.useFakeTimers();
+    installRuntime(async () => undefined);
+    const cancelFile = vi.fn(async () => undefined);
+    const current = pending();
+    current.fileId = 42;
+    current.client = { cancelFile } as unknown as PendingInboundFile["client"];
+
+    queuePendingFile({ pending: current, accountId: current.account.accountId, fileId: 42 });
+    await finalizePendingFile({ accountId: current.account.accountId, fileId: 42 });
+    await vi.advanceTimersByTimeAsync(90_000);
+
+    expect(cancelFile).not.toHaveBeenCalled();
+  });
+
+  it("replaces an older pending file timeout for the same key", async () => {
+    vi.useFakeTimers();
+    installRuntime(async () => undefined);
+    const firstCancel = vi.fn(async () => undefined);
+    const secondCancel = vi.fn(async () => undefined);
+    const first = pending();
+    first.fileId = 42;
+    first.client = { cancelFile: firstCancel } as unknown as PendingInboundFile["client"];
+    const second = pending();
+    second.fileId = 42;
+    second.client = { cancelFile: secondCancel } as unknown as PendingInboundFile["client"];
+
+    queuePendingFile({ pending: first, accountId: first.account.accountId, fileId: 42 });
+    queuePendingFile({ pending: second, accountId: second.account.accountId, fileId: 42 });
+    await vi.advanceTimersByTimeAsync(90_000);
+
+    expect(firstCancel).not.toHaveBeenCalled();
+    expect(secondCancel).toHaveBeenCalledWith(42);
   });
 });

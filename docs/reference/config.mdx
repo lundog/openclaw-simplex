@@ -129,6 +129,8 @@ If <code>accounts</code> is set, each account entry can override the shared root
 | `connection.allowUnsafeRemoteWs` | Allow plaintext remote WebSocket endpoints. Keep this false unless the endpoint is protected by a private network, firewall, or authenticated TLS proxy. |
 | `connection.autoAcceptFiles` | Whether incoming file transfers should be auto-accepted by the SimpleX runtime. |
 | `connection.connectTimeoutMs` | WebSocket connection timeout in milliseconds. |
+| `connection.commandTimeoutMs` | Default SimpleX WebSocket command timeout in milliseconds. |
+| `connection.directoryTimeoutMs` | Shorter timeout for advisory contact and group directory lookups. |
 | `accounts.<accountId>` | Per-account overrides for the same schema. |
 
 <Note>
@@ -147,7 +149,7 @@ This plugin talks to an already running external <code>simplex-chat</code> proce
 
 - <code>connection.wsUrl</code>, <code>wsHost</code>, <code>wsPort</code>
 - <code>connection.allowUnsafeRemoteWs</code>
-- <code>connection.connectTimeoutMs</code>
+- <code>connection.connectTimeoutMs</code>, <code>connection.commandTimeoutMs</code>, and <code>connection.directoryTimeoutMs</code>
 - <code>connection.autoAcceptFiles</code>
 - <code>streaming.nativeTransport</code>, <code>streaming.throttleMs</code>, <code>streaming.minChars</code>, and <code>streaming.wordBoundary</code>
 - <code>messageTtlSeconds</code> and <code>filePolicy</code>

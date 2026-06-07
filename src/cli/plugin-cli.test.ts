@@ -395,6 +395,7 @@ describe("simplex cli metadata", () => {
         [PLUGIN_ID, "invite"],
         [PLUGIN_ID, "invite", "create"],
         [PLUGIN_ID, "invite", "list"],
+        [PLUGIN_ID, "invite", "revoke"],
         [PLUGIN_ID, "address"],
         [PLUGIN_ID, "address", "show"],
         [PLUGIN_ID, "address", "create"],

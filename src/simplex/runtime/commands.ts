@@ -197,6 +197,14 @@ function formatSearchArg(search?: string | null): string {
   return trimmed;
 }
 
+function formatConnectLinkArg(link: string): string {
+  const trimmed = link.trim();
+  if (!trimmed || [...trimmed].some((ch) => ch.trim() === "" || ch === "\u0000")) {
+    throw new Error("invalid SimpleX connection link");
+  }
+  return trimmed;
+}
+
 export function formatSimplexChatRef(ref: SimplexChatRef): string {
   if (ref.type === "local") {
     throw new Error("local SimpleX chat refs are not supported");
@@ -413,9 +421,9 @@ export function buildCheckContactVerificationCommand(params: {
 }
 
 export function buildConnectPlanCommand(link: string): string {
-  return `/connect plan ${quoteCliArg(link)}`;
+  return `/connect plan ${formatConnectLinkArg(link)}`;
 }
 
 export function buildConnectCommand(link: string): string {
-  return `/connect ${quoteCliArg(link)}`;
+  return `/connect ${formatConnectLinkArg(link)}`;
 }

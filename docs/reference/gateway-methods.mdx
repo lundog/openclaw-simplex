@@ -46,7 +46,7 @@ Example response shape:
   "accountId": "default",
   "operation": "create-link",
   "mode": "connect",
-  "link": "simplex://...",
+  "link": "simplex:/contact#...",
   "qrDataUrl": "data:image/png;base64,..."
 }
 ```
@@ -75,8 +75,8 @@ Example response shape:
 ```json
 {
   "accountId": "default",
-  "addressLink": "simplex://...",
-  "links": ["simplex://..."],
+  "addressLink": "simplex:/contact#...",
+  "links": ["simplex:/contact#..."],
   "pendingHints": [],
   "addressQrDataUrl": "data:image/png;base64,..."
 }
@@ -289,7 +289,7 @@ Example response shape:
   "accountId": "default",
   "groupId": 42,
   "role": "member",
-  "link": "simplex://...",
+  "link": "https://smp18.simplex.im/g#...",
   "qrDataUrl": "data:image/png;base64,..."
 }
 ```
@@ -327,12 +327,14 @@ Let an operator connect the SimpleX runtime identity to a SimpleX contact/addres
 - `simplex.connect.plan`: inspect what connecting to `link` would do
 - `simplex.connect`: connect the active SimpleX user to `link`
 
+`link` may be a native SimpleX link such as `simplex:/contact#...` or a short web link such as `https://smp18.simplex.im/g#...`.
+
 Example request:
 
 ```json
 {
   "accountId": "default",
-  "link": "simplex://..."
+  "link": "https://smp18.simplex.im/g#..."
 }
 ```
 

@@ -8,6 +8,8 @@ export type SimplexConnectionConfig = {
   allowUnsafeRemoteWs?: boolean;
   autoAcceptFiles?: boolean;
   connectTimeoutMs?: number;
+  commandTimeoutMs?: number;
+  directoryTimeoutMs?: number;
 };
 
 export type SimplexStreamingConfig = {

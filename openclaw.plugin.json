@@ -248,6 +248,16 @@
                 "type": "integer",
                 "exclusiveMinimum": 0,
                 "maximum": 9007199254740991
+              },
+              "commandTimeoutMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "directoryTimeoutMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
               }
             },
             "additionalProperties": false
@@ -475,6 +485,16 @@
                       "type": "integer",
                       "exclusiveMinimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "commandTimeoutMs": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "directoryTimeoutMs": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
                     }
                   },
                   "additionalProperties": false
@@ -598,6 +618,30 @@
         "accounts.*.connection.connectTimeoutMs": {
           "label": "Connect Timeout (ms)",
           "help": "Runtime connection/start timeout in milliseconds.",
+          "advanced": true,
+          "tags": ["transport"]
+        },
+        "connection.commandTimeoutMs": {
+          "label": "Command Timeout (ms)",
+          "help": "Default timeout for SimpleX WebSocket commands.",
+          "advanced": true,
+          "tags": ["transport"]
+        },
+        "accounts.*.connection.commandTimeoutMs": {
+          "label": "Command Timeout (ms)",
+          "help": "Default timeout for SimpleX WebSocket commands.",
+          "advanced": true,
+          "tags": ["transport"]
+        },
+        "connection.directoryTimeoutMs": {
+          "label": "Directory Timeout (ms)",
+          "help": "Shorter timeout for advisory contact and group directory lookups.",
+          "advanced": true,
+          "tags": ["transport"]
+        },
+        "accounts.*.connection.directoryTimeoutMs": {
+          "label": "Directory Timeout (ms)",
+          "help": "Shorter timeout for advisory contact and group directory lookups.",
           "advanced": true,
           "tags": ["transport"]
         },

@@ -53,6 +53,8 @@ export type SimplexCapabilityClient = Pick<
   "getActiveUser" | "getAddress" | "listContacts" | "listGroups" | "listUsers" | "runCommand"
 >;
 
+const DEFAULT_DIRECTORY_TIMEOUT_MS = 5_000;
+
 type SimplexRuntimeCapabilityProbeOptions = {
   account: ResolvedSimplexAccount;
   client?: SimplexCapabilityClient;
@@ -186,6 +188,14 @@ function readStrictUserId(activeUser: unknown): number | null {
   return parseSimplexNumericId(rawUserId);
 }
 
+function resolveDirectoryTimeoutMs(account: ResolvedSimplexAccount): number {
+  return (
+    account.config.connection?.directoryTimeoutMs ??
+    account.config.connection?.commandTimeoutMs ??
+    DEFAULT_DIRECTORY_TIMEOUT_MS
+  );
+}
+
 async function optionalCommandProbe(params: {
   client: ProbeCommandRunner;
   command: string | undefined;
@@ -248,10 +258,11 @@ async function collectWithClient(
 ): Promise<SimplexRuntimeCapabilityProbeData> {
   const versionResult = await probeRuntimeVersion(params.client, readSimplexRuntimeVersion());
   const runtimeVersion = versionResult.runtimeVersion;
+  const directoryTimeoutMs = resolveDirectoryTimeoutMs(params.account);
   let activeUser: unknown = null;
   let activeUserProbe: SimplexValueCapabilityProbe | null = null;
   try {
-    activeUser = await params.client.getActiveUser();
+    activeUser = await params.client.getActiveUser({ timeoutMs: directoryTimeoutMs });
   } catch (err) {
     activeUserProbe = valueProbe(
       isUnsupportedRuntimeError(errorMessage(err)) ? "unsupported" : "error",
@@ -294,7 +305,7 @@ async function collectWithClient(
           error: "No active user id available.",
         })
       : params.client
-          .listContacts(userId)
+          .listContacts(userId, { timeoutMs: directoryTimeoutMs })
           .then((contacts) => ({ contacts, error: null as string | null }))
           .catch(
             (err): ListProbeResult<"contacts"> => ({
@@ -308,7 +319,7 @@ async function collectWithClient(
           error: "No active user id available.",
         })
       : params.client
-          .listGroups({ userId })
+          .listGroups({ userId }, { timeoutMs: directoryTimeoutMs })
           .then((groups) => ({ groups, error: null as string | null }))
           .catch(
             (err): ListProbeResult<"groups"> => ({

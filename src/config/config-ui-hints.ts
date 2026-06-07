@@ -61,6 +61,18 @@ const accountScopedUiHints = withAccountScope({
     advanced: true,
     tags: ["transport"],
   },
+  "connection.commandTimeoutMs": {
+    label: "Command Timeout (ms)",
+    help: "Default timeout for SimpleX WebSocket commands.",
+    advanced: true,
+    tags: ["transport"],
+  },
+  "connection.directoryTimeoutMs": {
+    label: "Directory Timeout (ms)",
+    help: "Shorter timeout for advisory contact and group directory lookups.",
+    advanced: true,
+    tags: ["transport"],
+  },
   mediaMaxMb: {
     label: "Max Media Size (MB)",
     help: "Optional media size cap for files sent through this SimpleX account.",
