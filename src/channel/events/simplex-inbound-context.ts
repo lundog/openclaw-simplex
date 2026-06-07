@@ -1,9 +1,7 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
+import type { EnvelopeFormatOptions } from "openclaw/plugin-sdk/channel-inbound";
 import { SIMPLEX_CHANNEL_ID } from "../../constants.js";
 import type { SimplexChatContext } from "../../types/events.js";
-import type { getSimplexRuntime } from "../runtime.js";
-
-type SimplexRuntimeCore = ReturnType<typeof getSimplexRuntime>;
 
 type SimplexAgentRoute = {
   agentId: string;
@@ -11,8 +9,34 @@ type SimplexAgentRoute = {
   accountId: string;
 };
 
+export type SimplexInboundDispatchCore = {
+  channel: {
+    session: {
+      resolveStorePath: (
+        store: NonNullable<OpenClawConfig["session"]>["store"] | undefined,
+        params: { agentId: string }
+      ) => string;
+      readSessionUpdatedAt: (params: {
+        storePath: string;
+        sessionKey: string;
+      }) => number | null | undefined;
+    };
+    reply: {
+      resolveEnvelopeFormatOptions: (cfg: OpenClawConfig) => EnvelopeFormatOptions;
+      formatAgentEnvelope: (params: {
+        channel: string;
+        from: string;
+        previousTimestamp: number | Date | undefined;
+        envelope?: EnvelopeFormatOptions;
+        body: string;
+      }) => string;
+      finalizeInboundContext: (ctx: Record<string, unknown>) => Record<string, unknown>;
+    };
+  };
+};
+
 export function buildSimplexInboundDispatchContext(params: {
-  core: SimplexRuntimeCore;
+  core: SimplexInboundDispatchCore;
   cfg: OpenClawConfig;
   context: SimplexChatContext;
   route: SimplexAgentRoute;
@@ -55,7 +79,7 @@ export function buildSimplexInboundDispatchContext(params: {
   const body = core.channel.reply.formatAgentEnvelope({
     channel: "SimpleX",
     from: fromLabel,
-    previousTimestamp,
+    previousTimestamp: previousTimestamp ?? undefined,
     envelope: envelopeOptions,
     body: rawBody,
   });

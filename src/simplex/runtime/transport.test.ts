@@ -39,6 +39,7 @@ import {
 } from "./transport.js";
 
 const registeredAccounts: Array<{ account: ResolvedSimplexAccount; client: SimplexClient }> = [];
+type TestSimplexClient = SimplexClient & { source: string };
 
 function account(
   accountId = "default",
@@ -60,12 +61,12 @@ function account(
   };
 }
 
-function activeClient(source: string): SimplexClient {
+function activeClient(source: string): TestSimplexClient {
   return {
     source,
     async connect() {},
     async close() {},
-  } as unknown as SimplexClient;
+  } as TestSimplexClient;
 }
 
 describe("simplex runtime transport", () => {
@@ -85,7 +86,7 @@ describe("simplex runtime transport", () => {
 
     const result = await withSimplexClient({
       account: cfg,
-      run: async (runtimeClient) => (runtimeClient as unknown as { source: string }).source,
+      run: async (runtimeClient) => (runtimeClient as TestSimplexClient).source,
     });
 
     expect(result).toBe("active");
@@ -102,7 +103,7 @@ describe("simplex runtime transport", () => {
 
     const result = await withSimplexClient({
       account: alias,
-      run: async (runtimeClient) => (runtimeClient as unknown as { source: string }).source,
+      run: async (runtimeClient) => (runtimeClient as TestSimplexClient).source,
     });
 
     expect(result).toBe("active");
@@ -119,7 +120,7 @@ describe("simplex runtime transport", () => {
 
     const result = await withSimplexClient({
       account: alias,
-      run: async (runtimeClient) => (runtimeClient as unknown as { source: string }).source,
+      run: async (runtimeClient) => (runtimeClient as TestSimplexClient).source,
     });
 
     expect(result).toBe("constructed");
@@ -147,7 +148,7 @@ describe("simplex runtime transport", () => {
 
     const result = await withSimplexClient({
       account: cfg,
-      run: async (runtimeClient) => (runtimeClient as unknown as { source: string }).source,
+      run: async (runtimeClient) => (runtimeClient as TestSimplexClient).source,
     });
 
     expect(result).toBe("constructed");

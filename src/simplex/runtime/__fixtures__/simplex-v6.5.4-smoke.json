@@ -1,0 +1,204 @@
+{
+  "meta": {
+    "runtime": "simplex-chat",
+    "runtimeVersion": "6.5.4",
+    "source": "anonymized smoke-test payload shapes from SimpleX WebSocket runtime and OpenClaw SimpleX logs",
+    "capturedAt": "2026-06-07"
+  },
+  "events": {
+    "directMessageItem": {
+      "chatInfo": {
+        "type": "direct",
+        "contact": {
+          "contactId": 4,
+          "localDisplayName": "Release Tester",
+          "profile": {
+            "displayName": "Tester"
+          }
+        }
+      },
+      "chatItem": {
+        "chatDir": {
+          "type": "directRcv"
+        },
+        "meta": {
+          "itemId": 287,
+          "itemTs": "2026-06-07T10:00:00Z"
+        },
+        "content": {
+          "type": "rcvMsgContent",
+          "msgContent": {
+            "type": "text",
+            "text": "hi from dm"
+          }
+        }
+      }
+    },
+    "groupMessageItem": {
+      "chatInfo": {
+        "type": "group",
+        "groupInfo": {
+          "groupId": 2,
+          "localDisplayName": "Release_1"
+        }
+      },
+      "chatItem": {
+        "chatDir": {
+          "type": "groupRcv",
+          "groupMember": {
+            "groupMemberId": 11,
+            "contactId": 4,
+            "localDisplayName": "Release Tester"
+          }
+        },
+        "meta": {
+          "itemId": 289,
+          "itemTs": "2026-06-07T10:01:00Z"
+        },
+        "content": {
+          "type": "rcvMsgContent",
+          "msgContent": {
+            "type": "text",
+            "text": "hi from group"
+          }
+        }
+      }
+    },
+    "fileMessageItem": {
+      "chatInfo": {
+        "type": "direct",
+        "contact": {
+          "contactId": 4,
+          "localDisplayName": "Release Tester"
+        }
+      },
+      "chatItem": {
+        "chatDir": {
+          "type": "directRcv"
+        },
+        "meta": {
+          "itemId": 291,
+          "itemTs": "2026-06-07T10:02:00Z"
+        },
+        "content": {
+          "type": "rcvMsgContent",
+          "msgContent": {
+            "type": "file",
+            "text": ""
+          }
+        },
+        "file": {
+          "fileId": 31,
+          "fileName": "smoke.txt",
+          "fileSize": 128,
+          "fileSource": {
+            "filePath": "/tmp/simplex/smoke.txt"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "contacts": {
+      "corrId": "contacts",
+      "resp": {
+        "type": "contactsList",
+        "contacts": [
+          {
+            "contact": {
+              "contactId": 4,
+              "profile": {
+                "displayName": "Tester"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "groups": {
+      "corrId": "groups",
+      "resp": {
+        "type": "groupsList",
+        "groups": [
+          {
+            "groupInfo": {
+              "groupId": 2,
+              "groupProfile": {
+                "displayName": "Release_1"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "activeUser": {
+      "corrId": "user",
+      "resp": {
+        "type": "activeUser",
+        "user": {
+          "userId": 1,
+          "agentUserId": "1",
+          "userContactId": 1,
+          "localDisplayName": "bot",
+          "profile": {
+            "profileId": 1,
+            "displayName": "bot",
+            "fullName": "",
+            "localAlias": ""
+          },
+          "activeUser": true,
+          "activeOrder": 1,
+          "showNtfs": true,
+          "sendRcptsContacts": true,
+          "sendRcptsSmallGroups": true,
+          "autoAcceptMemberContacts": false
+        }
+      }
+    },
+    "connectLink": {
+      "corrId": "connect-plan",
+      "resp": {
+        "type": "connectionPlan",
+        "connLink": {
+          "connFullLink": "simplex:/contact#/?v=2-7&smp=smp%3A%2F%2Fanonymized%3D%40smp18.simplex.im%2Fanonymized",
+          "connShortLink": "https://smp18.simplex.im/g#HF_WI7By_xG3JvZHZA-aARcMeiWy1vFvRBmh_8vt4uc"
+        },
+        "connectionPlan": {
+          "type": "groupLink",
+          "groupLinkPlan": {
+            "type": "known",
+            "groupInfo": {
+              "groupId": 2,
+              "localDisplayName": "Release_1",
+              "groupProfile": {
+                "displayName": "Release",
+                "fullName": ""
+              }
+            }
+          }
+        }
+      }
+    },
+    "nativeContactLink": {
+      "corrId": "contact-link",
+      "resp": {
+        "type": "userContactLink",
+        "contactLink": {
+          "connReqContact": "simplex:/contact#release-test"
+        }
+      }
+    },
+    "commandError": {
+      "corrId": "error",
+      "resp": {
+        "type": "chatCmdError",
+        "chatError": {
+          "errorType": {
+            "type": "invalidConnReq",
+            "message": "invalid connection link"
+          }
+        }
+      }
+    }
+  }
+}

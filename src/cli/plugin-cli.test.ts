@@ -347,11 +347,11 @@ describe("simplex migration command", () => {
           resolveStateDir: () => stateDir,
         },
       },
-    } as unknown as OpenClawPluginApi;
+    };
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     try {
-      await runMigration(api, false);
+      await runMigration(api as object as Partial<OpenClawPluginApi> as OpenClawPluginApi, false);
     } finally {
       log.mockRestore();
     }
@@ -384,9 +384,9 @@ describe("simplex cli metadata", () => {
       registerCli: (registrar: (ctx: { program: FakeCliCommand }) => void) => {
         registrar({ program: new FakeCliCommand([], commands) });
       },
-    } as unknown as OpenClawPluginApi;
+    };
 
-    registerSimplexCliMetadata(api);
+    registerSimplexCliMetadata(api as object as Partial<OpenClawPluginApi> as OpenClawPluginApi);
 
     expect(commands).toEqual(
       expect.arrayContaining([

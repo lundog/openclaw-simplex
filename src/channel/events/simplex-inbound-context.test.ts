@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SimplexChatContext } from "../../types/events.js";
-import { buildSimplexInboundDispatchContext } from "./simplex-inbound-context.js";
+import {
+  buildSimplexInboundDispatchContext,
+  type SimplexInboundDispatchCore,
+} from "./simplex-inbound-context.js";
 
 function groupContext(): SimplexChatContext {
   return {
@@ -12,7 +15,7 @@ function groupContext(): SimplexChatContext {
   };
 }
 
-function runtimeCore() {
+function runtimeCore(): SimplexInboundDispatchCore {
   return {
     channel: {
       session: {
@@ -20,7 +23,7 @@ function runtimeCore() {
         readSessionUpdatedAt: vi.fn(() => 123),
       },
       reply: {
-        resolveEnvelopeFormatOptions: vi.fn(() => ({ enabled: true })),
+        resolveEnvelopeFormatOptions: vi.fn(() => ({ includeTimestamp: true })),
         formatAgentEnvelope: vi.fn(({ body }) => `wrapped:${body}`),
         finalizeInboundContext: vi.fn((ctx) => ctx),
       },
@@ -33,7 +36,7 @@ describe("buildSimplexInboundDispatchContext", () => {
     const core = runtimeCore();
 
     const result = buildSimplexInboundDispatchContext({
-      core: core as never,
+      core,
       cfg: {},
       context: groupContext(),
       route: {

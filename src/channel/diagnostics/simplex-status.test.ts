@@ -101,4 +101,25 @@ describe("simplex status adapter", () => {
 
     expect((snapshot?.application as { capabilities?: unknown }).capabilities).toBe(capabilities);
   });
+
+  it("labels group capability counts as advisory directory probes", () => {
+    const capabilities: SimplexRuntimeCapabilityReport = {
+      runtimeVersion: null,
+      version: { state: "unknown", runtimeVersion: null, value: null },
+      activeUser: { state: "supported", runtimeVersion: null, value: { userId: 1 } },
+      users: { state: "supported", runtimeVersion: null, count: 1 },
+      contacts: { state: "supported", runtimeVersion: null, count: 2 },
+      groups: { state: "supported", runtimeVersion: null, count: 0 },
+      liveMessages: { state: "unknown", runtimeVersion: null },
+      ttl: { state: "unknown", runtimeVersion: null },
+      verification: { state: "unknown", runtimeVersion: null },
+      moderation: { state: "unknown", runtimeVersion: null },
+      files: { state: "unknown", runtimeVersion: null },
+      experimentalChannels: { state: "unknown", runtimeVersion: null },
+    };
+
+    expect(buildSimplexStatus().formatCapabilitiesProbe?.({ probe: capabilities })).toEqual(
+      expect.arrayContaining([{ text: "SimpleX groups directory: supported (0, advisory)" }])
+    );
+  });
 });

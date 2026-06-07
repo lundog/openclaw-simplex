@@ -35,15 +35,16 @@ describe("simplex keyed store fallback", () => {
 
   it("falls back to memory when the host exposes but rejects keyed stores", async () => {
     const namespace = `test-rejected-host-store-${Date.now()}-${Math.random()}`;
-    const store = openSimplexKeyedStore<string>({
-      runtime: {
-        state: {
-          resolveStateDir: () => "/tmp/openclaw-simplex-test",
-          openKeyedStore() {
-            throw new Error("openKeyedStore is only available for bundled plugins in this release");
-          },
+    const runtime: Partial<PluginRuntime> = {
+      state: {
+        resolveStateDir: () => "/tmp/openclaw-simplex-test",
+        openKeyedStore() {
+          throw new Error("openKeyedStore is only available for bundled plugins in this release");
         },
-      } as unknown as PluginRuntime,
+      },
+    };
+    const store = openSimplexKeyedStore<string>({
+      runtime: runtime as PluginRuntime,
       namespace,
       maxEntries: 10,
     });

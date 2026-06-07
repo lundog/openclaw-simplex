@@ -7,7 +7,6 @@ import type {
   SimplexLogger,
   SimplexReaction,
   SimplexRuntimeEvent,
-  SimplexRuntimeResponse,
 } from "../../types/simplex.js";
 import {
   buildAcceptContactRequestCommand,
@@ -39,8 +38,13 @@ import {
   buildUpdateGroupProfileCommand,
   INVITE_COMMANDS,
 } from "./commands.js";
-import { resolveSimplexCommandError } from "./errors.js";
 import { extractSimplexLink } from "./links.js";
+import {
+  readSimplexArrayField,
+  readSimplexObjectField,
+  type SimplexCommandResponsePayload,
+  unwrapSimplexCommandResponse,
+} from "./responses.js";
 import { assertSimplexWsEndpointAllowed } from "./security.js";
 import { type SimplexConnectionState, SimplexWsClient } from "./ws-client.js";
 
@@ -49,43 +53,9 @@ type SimplexClientParams = {
   logger?: SimplexLogger;
 };
 
-type CommandResponsePayload = {
-  type?: string;
-  [key: string]: unknown;
-};
-
 type SimplexCommandOptions = {
   timeoutMs?: number;
 };
-
-function unwrapResponse(response: SimplexRuntimeResponse): CommandResponsePayload {
-  const resp = response.resp as CommandResponsePayload | undefined;
-  const commandError = resolveSimplexCommandError(resp);
-  if (commandError) {
-    throw new Error(commandError);
-  }
-  return resp ?? response;
-}
-
-function firstArrayField(payload: CommandResponsePayload, fields: string[]): unknown[] {
-  for (const field of fields) {
-    const value = payload[field];
-    if (Array.isArray(value)) {
-      return value;
-    }
-  }
-  return [];
-}
-
-function firstObjectField(payload: CommandResponsePayload, fields: string[]): unknown {
-  for (const field of fields) {
-    const value = payload[field];
-    if (value !== undefined) {
-      return value;
-    }
-  }
-  return payload;
-}
 
 export class SimplexClient {
   private readonly ws: SimplexWsClient;
@@ -126,8 +96,8 @@ export class SimplexClient {
   async runCommand(
     command: string,
     options: SimplexCommandOptions = {}
-  ): Promise<CommandResponsePayload> {
-    return unwrapResponse(await this.ws.sendCommand(command, options.timeoutMs));
+  ): Promise<SimplexCommandResponsePayload> {
+    return unwrapSimplexCommandResponse(await this.ws.sendCommand(command, options.timeoutMs));
   }
 
   async sendMessages(params: {
@@ -137,7 +107,7 @@ export class SimplexClient {
     ttl?: number;
   }): Promise<unknown[]> {
     const payload = await this.runCommand(buildSendMessagesCommand(params));
-    return firstArrayField(payload, ["chatItems", "items"]);
+    return readSimplexArrayField(payload, ["chatItems", "items"]);
   }
 
   async reactToMessage(params: {
@@ -215,12 +185,12 @@ export class SimplexClient {
 
   async getActiveUser(options: SimplexCommandOptions = {}): Promise<unknown> {
     const payload = await this.runCommand(buildShowActiveUserCommand(), options);
-    return firstObjectField(payload, ["user", "activeUser"]);
+    return readSimplexObjectField(payload, ["user", "activeUser"]);
   }
 
   async listUsers(options: SimplexCommandOptions = {}): Promise<unknown[]> {
     const payload = await this.runCommand(buildListUsersCommand(), options);
-    return firstArrayField(payload, ["users"]);
+    return readSimplexArrayField(payload, ["users"]);
   }
 
   async listContacts(
@@ -228,7 +198,7 @@ export class SimplexClient {
     options: SimplexCommandOptions = {}
   ): Promise<unknown[]> {
     const payload = await this.runCommand(buildListContactsCommand(userId), options);
-    return firstArrayField(payload, ["contacts"]);
+    return readSimplexArrayField(payload, ["contacts"]);
   }
 
   async listGroups(
@@ -240,7 +210,7 @@ export class SimplexClient {
     options: SimplexCommandOptions = {}
   ): Promise<unknown[]> {
     const payload = await this.runCommand(buildListGroupsCommand(params), options);
-    return firstArrayField(payload, ["groups"]);
+    return readSimplexArrayField(payload, ["groups"]);
   }
 
   async listGroupMembers(
@@ -251,12 +221,12 @@ export class SimplexClient {
     options: SimplexCommandOptions = {}
   ): Promise<unknown[]> {
     const payload = await this.runCommand(buildListGroupMembersCommand(params), options);
-    return firstArrayField(payload, ["members", "groupMembers"]);
+    return readSimplexArrayField(payload, ["members", "groupMembers"]);
   }
 
   async createGroup(profile: SimplexGroupProfile): Promise<unknown> {
     const payload = await this.runCommand(buildCreateGroupCommand(profile));
-    return firstObjectField(payload, ["group", "groupInfo"]);
+    return readSimplexObjectField(payload, ["group", "groupInfo"]);
   }
 
   async updateGroupProfile(params: {

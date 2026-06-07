@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
+import { clearSimplexDirectoryProbeCache } from "./directory-probes.js";
 import {
   collectSimplexCapabilityIssues,
   probeSimplexCommandSupport,
@@ -39,6 +40,10 @@ function client(overrides: Partial<SimplexCapabilityClient> = {}): SimplexCapabi
 }
 
 describe("simplex runtime capability probes", () => {
+  beforeEach(() => {
+    clearSimplexDirectoryProbeCache();
+  });
+
   it("marks a supported command response", async () => {
     const result = await probeSimplexCommandSupport({
       client: client(),
@@ -103,6 +108,7 @@ describe("simplex runtime capability probes", () => {
       state: "unknown",
       count: null,
       error: "No active user id available.",
+      detail: expect.stringContaining("Advisory SimpleX group directory probe"),
     });
   });
 
@@ -120,6 +126,7 @@ describe("simplex runtime capability probes", () => {
     expect(result.capabilities.groups).toMatchObject({
       state: "supported",
       count: 0,
+      detail: expect.stringContaining("Advisory SimpleX group directory probe"),
     });
   });
 

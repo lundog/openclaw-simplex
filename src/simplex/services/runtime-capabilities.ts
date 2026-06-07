@@ -1,8 +1,15 @@
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import { readSimplexRuntimeVersion } from "../runtime/account.js";
 import type { SimplexClient } from "../runtime/client.js";
-import { parseSimplexNumericId } from "../runtime/commands.js";
 import { withSimplexClient } from "../runtime/transport.js";
+import {
+  isSimplexEmptyRuntimeListError,
+  readSimplexActiveUserInfo,
+  readSimplexActiveUserInfoFromClient,
+  resolveSimplexDirectoryTimeoutMs,
+  type SimplexActiveUserInfo,
+  simplexErrorMessage,
+} from "./directory-probes.js";
 
 export type SimplexCapabilityState = "supported" | "unsupported" | "unknown" | "error";
 
@@ -53,7 +60,8 @@ export type SimplexCapabilityClient = Pick<
   "getActiveUser" | "getAddress" | "listContacts" | "listGroups" | "listUsers" | "runCommand"
 >;
 
-const DEFAULT_DIRECTORY_TIMEOUT_MS = 5_000;
+const GROUP_DIRECTORY_DETAIL =
+  "Advisory SimpleX group directory probe. Some runtimes can deliver group events or resolve known group links even when /_groups returns an empty list.";
 
 type SimplexRuntimeCapabilityProbeOptions = {
   account: ResolvedSimplexAccount;
@@ -69,10 +77,6 @@ type SimplexRuntimeCapabilityProbeOptions = {
 type ListProbeResult<Key extends string> = Record<Key, unknown[]> & {
   error: string | null;
 };
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 function readStringField(payload: unknown, fields: string[]): string | null {
   if (!payload || typeof payload !== "object") {
@@ -99,10 +103,6 @@ function isUnsupportedRuntimeError(message: string): boolean {
     "not implemented",
     "unrecognized command",
   ].some((needle) => normalized.includes(needle));
-}
-
-function isEmptyRuntimeListError(message: string): boolean {
-  return message.trim().toLowerCase() === "failed reading: empty";
 }
 
 function probe(
@@ -151,7 +151,7 @@ export async function probeSimplexCommandSupport(params: {
       runtimeVersion,
     });
   } catch (err) {
-    const message = errorMessage(err);
+    const message = simplexErrorMessage(err);
     if (isUnsupportedRuntimeError(message)) {
       return probe("unsupported", {
         command: params.command,
@@ -178,22 +178,7 @@ function unknownProbe(params: {
 }
 
 function readStrictUserId(activeUser: unknown): number | null {
-  if (!activeUser || typeof activeUser !== "object") {
-    return null;
-  }
-  const rawUserId = (activeUser as { userId?: unknown }).userId;
-  if (typeof rawUserId !== "number" && typeof rawUserId !== "string") {
-    return null;
-  }
-  return parseSimplexNumericId(rawUserId);
-}
-
-function resolveDirectoryTimeoutMs(account: ResolvedSimplexAccount): number {
-  return (
-    account.config.connection?.directoryTimeoutMs ??
-    account.config.connection?.commandTimeoutMs ??
-    DEFAULT_DIRECTORY_TIMEOUT_MS
-  );
+  return readSimplexActiveUserInfo(activeUser)?.numericUserId ?? null;
 }
 
 async function optionalCommandProbe(params: {
@@ -240,7 +225,7 @@ async function probeRuntimeVersion(
       }),
     };
   } catch (err) {
-    const message = errorMessage(err);
+    const message = simplexErrorMessage(err);
     return {
       runtimeVersion: fallbackRuntimeVersion,
       probe: valueProbe(isUnsupportedRuntimeError(message) ? "unsupported" : "error", {
@@ -258,24 +243,30 @@ async function collectWithClient(
 ): Promise<SimplexRuntimeCapabilityProbeData> {
   const versionResult = await probeRuntimeVersion(params.client, readSimplexRuntimeVersion());
   const runtimeVersion = versionResult.runtimeVersion;
-  const directoryTimeoutMs = resolveDirectoryTimeoutMs(params.account);
+  const directoryTimeoutMs = resolveSimplexDirectoryTimeoutMs(params.account);
   let activeUser: unknown = null;
+  let activeUserInfo: SimplexActiveUserInfo | null = null;
   let activeUserProbe: SimplexValueCapabilityProbe | null = null;
   try {
-    activeUser = await params.client.getActiveUser({ timeoutMs: directoryTimeoutMs });
+    activeUserInfo = await readSimplexActiveUserInfoFromClient({
+      account: params.account,
+      client: params.client,
+      timeoutMs: directoryTimeoutMs,
+    });
+    activeUser = activeUserInfo?.raw ?? null;
   } catch (err) {
     activeUserProbe = valueProbe(
-      isUnsupportedRuntimeError(errorMessage(err)) ? "unsupported" : "error",
+      isUnsupportedRuntimeError(simplexErrorMessage(err)) ? "unsupported" : "error",
       {
         command: "/user",
         runtimeVersion,
         value: null,
-        error: errorMessage(err),
+        error: simplexErrorMessage(err),
       }
     );
   }
 
-  const userId = readStrictUserId(activeUser);
+  const userId = activeUserInfo?.numericUserId ?? readStrictUserId(activeUser);
   if (!activeUserProbe) {
     activeUserProbe = valueProbe(userId === null ? "unknown" : "supported", {
       command: "/user",
@@ -296,7 +287,7 @@ async function collectWithClient(
       .catch(
         (err): ListProbeResult<"users"> => ({
           users: [],
-          error: errorMessage(err),
+          error: simplexErrorMessage(err),
         })
       ),
     userId === null
@@ -310,7 +301,7 @@ async function collectWithClient(
           .catch(
             (err): ListProbeResult<"contacts"> => ({
               contacts: [],
-              error: isEmptyRuntimeListError(errorMessage(err)) ? null : errorMessage(err),
+              error: isSimplexEmptyRuntimeListError(err) ? null : simplexErrorMessage(err),
             })
           ),
     userId === null
@@ -324,7 +315,7 @@ async function collectWithClient(
           .catch(
             (err): ListProbeResult<"groups"> => ({
               groups: [],
-              error: isEmptyRuntimeListError(errorMessage(err)) ? null : errorMessage(err),
+              error: isSimplexEmptyRuntimeListError(err) ? null : simplexErrorMessage(err),
             })
           ),
   ]);
@@ -426,11 +417,13 @@ async function collectWithClient(
             runtimeVersion,
             count: null,
             error: groupsResult.error,
+            detail: GROUP_DIRECTORY_DETAIL,
           })
         : countProbe("supported", {
             command: `/_groups ${userId}`,
             runtimeVersion,
             count: groups.length,
+            detail: GROUP_DIRECTORY_DETAIL,
           }),
       liveMessages:
         capabilityCommands.liveMessages !== undefined

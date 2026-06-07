@@ -29,7 +29,7 @@ function installRuntime(
     };
   }) => Promise<void>
 ): void {
-  setSimplexRuntime({
+  const runtime = {
     channel: {
       session: {
         recordInboundSession: vi.fn(async () => undefined),
@@ -38,7 +38,15 @@ function installRuntime(
         dispatchReplyWithBufferedBlockDispatcher: vi.fn(dispatch),
       },
     },
-  } as unknown as PluginRuntime);
+  };
+  setSimplexRuntime(runtime as object as Partial<PluginRuntime> as PluginRuntime);
+}
+
+function fileClient(
+  cancelFile: (fileId: number | string) => Promise<unknown>
+): PendingInboundFile["client"] {
+  const client: Partial<PendingInboundFile["client"]> = { cancelFile };
+  return client as PendingInboundFile["client"];
 }
 
 function pending(sendPayload = vi.fn(async () => undefined)): PendingInboundFile {
@@ -118,7 +126,7 @@ describe("simplex inbound live replies", () => {
     const cancelFile = vi.fn(async () => undefined);
     const current = pending();
     current.fileId = 42;
-    current.client = { cancelFile } as unknown as PendingInboundFile["client"];
+    current.client = fileClient(cancelFile);
 
     queuePendingFile({ pending: current, accountId: current.account.accountId, fileId: 42 });
     await finalizePendingFile({ accountId: current.account.accountId, fileId: 42 });
@@ -134,10 +142,10 @@ describe("simplex inbound live replies", () => {
     const secondCancel = vi.fn(async () => undefined);
     const first = pending();
     first.fileId = 42;
-    first.client = { cancelFile: firstCancel } as unknown as PendingInboundFile["client"];
+    first.client = fileClient(firstCancel);
     const second = pending();
     second.fileId = 42;
-    second.client = { cancelFile: secondCancel } as unknown as PendingInboundFile["client"];
+    second.client = fileClient(secondCancel);
 
     queuePendingFile({ pending: first, accountId: first.account.accountId, fileId: 42 });
     queuePendingFile({ pending: second, accountId: second.account.accountId, fileId: 42 });

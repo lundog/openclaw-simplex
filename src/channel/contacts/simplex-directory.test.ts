@@ -2,33 +2,45 @@ import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const simplexApiMock = vi.hoisted(() => ({
-  contacts: [] as unknown[],
-  groups: [] as unknown[],
-  members: [] as unknown[],
-  withClientCalls: 0,
-  getActiveUser: vi.fn(async () => ({
-    userId: 1,
-    profile: { displayName: "OpenClaw SimpleX" },
-  })),
-  listContacts: vi.fn(async () => [] as unknown[]),
-  listGroups: vi.fn(async (_params?: unknown) => [] as unknown[]),
-  reset() {
-    this.contacts = [];
-    this.groups = [];
-    this.members = [];
-    this.withClientCalls = 0;
-    this.getActiveUser.mockImplementation(async () => ({
+const simplexApiMock = vi.hoisted(() => {
+  const state: {
+    contacts: unknown[];
+    groups: unknown[];
+    members: unknown[];
+    withClientCalls: number;
+    getActiveUser: ReturnType<typeof vi.fn>;
+    listContacts: ReturnType<typeof vi.fn>;
+    listGroups: ReturnType<typeof vi.fn>;
+    reset: () => void;
+  } = {
+    contacts: [],
+    groups: [],
+    members: [],
+    withClientCalls: 0,
+    getActiveUser: vi.fn(async () => ({
       userId: 1,
       profile: { displayName: "OpenClaw SimpleX" },
-    }));
-    this.getActiveUser.mockClear();
-    this.listContacts.mockImplementation(async () => this.contacts);
-    this.listContacts.mockClear();
-    this.listGroups.mockImplementation(async () => this.groups);
-    this.listGroups.mockClear();
-  },
-}));
+    })),
+    listContacts: vi.fn(async () => []),
+    listGroups: vi.fn(async () => []),
+    reset() {
+      state.contacts = [];
+      state.groups = [];
+      state.members = [];
+      state.withClientCalls = 0;
+      state.getActiveUser.mockImplementation(async () => ({
+        userId: 1,
+        profile: { displayName: "OpenClaw SimpleX" },
+      }));
+      state.getActiveUser.mockClear();
+      state.listContacts.mockImplementation(async () => state.contacts);
+      state.listContacts.mockClear();
+      state.listGroups.mockImplementation(async () => state.groups);
+      state.listGroups.mockClear();
+    },
+  };
+  return state;
+});
 
 vi.mock("../../simplex/runtime/transport.js", () => ({
   withSimplexClient: async <T>(params: { run: (client: unknown) => Promise<T> }): Promise<T> => {
@@ -43,6 +55,7 @@ vi.mock("../../simplex/runtime/transport.js", () => ({
   },
 }));
 
+import { clearSimplexDirectoryProbeCache } from "../../simplex/services/directory-probes.js";
 import {
   listSimplexDirectoryGroups,
   listSimplexDirectoryPeers,
@@ -60,13 +73,16 @@ const cfg = {
   },
 } as OpenClawConfig;
 
-const runtime = {
+const runtime: RuntimeEnv = {
+  log: vi.fn(),
   error: vi.fn(),
-} as unknown as RuntimeEnv;
+  exit: vi.fn(),
+};
 
 describe("simplex directory mapping", () => {
   beforeEach(() => {
     simplexApiMock.reset();
+    clearSimplexDirectoryProbeCache();
   });
 
   it("maps nested contact payloads and applies query filtering", async () => {

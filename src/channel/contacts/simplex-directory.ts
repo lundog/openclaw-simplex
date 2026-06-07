@@ -3,12 +3,17 @@ import type { ChannelDirectoryEntry } from "openclaw/plugin-sdk/directory-runtim
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { resolveSimplexAccount } from "../../config/accounts.js";
 import { parseSimplexNumericId } from "../../simplex/runtime/api.js";
-import type { SimplexClient } from "../../simplex/runtime/client.js";
 import { withSimplexClient } from "../../simplex/runtime/transport.js";
+import {
+  isSimplexEmptyRuntimeListError,
+  readSimplexActiveUserInfoFromClient,
+  readSimplexStringId,
+  resolveSimplexDirectoryTimeoutMs,
+  type SimplexActiveUserInfo,
+  simplexErrorMessage,
+} from "../../simplex/services/directory-probes.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import { stripSimplexPrefix } from "../shared/simplex-common.js";
-
-const DEFAULT_DIRECTORY_TIMEOUT_MS = 5_000;
 
 type SimplexDirectoryParams = {
   cfg: OpenClawConfig;
@@ -24,38 +29,8 @@ type SimplexResolveResult = {
   note?: string;
 };
 
-type ActiveUserInfo = {
-  userId?: string;
-  displayName?: string;
-  raw?: unknown;
-};
-
-function resolveDirectoryTimeoutMs(account: ResolvedSimplexAccount): number {
-  return (
-    account.config.connection?.directoryTimeoutMs ??
-    account.config.connection?.commandTimeoutMs ??
-    DEFAULT_DIRECTORY_TIMEOUT_MS
-  );
-}
-
-function toId(value: unknown): string | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
-  }
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed ? trimmed : undefined;
-  }
-  return undefined;
-}
-
 function normalizeQuery(query?: string | null): string {
   return (query ?? "").trim().toLowerCase();
-}
-
-function isEmptyRuntimeListError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return message.trim().toLowerCase() === "failed reading: empty";
 }
 
 function applyDirectoryFilter(params: {
@@ -84,16 +59,16 @@ function mapContactEntry(entry: unknown): ChannelDirectoryEntry | null {
   }
   const record = entry as Record<string, unknown>;
   const contact = (record.contact as Record<string, unknown> | undefined) ?? record;
-  const id = toId(contact.contactId ?? contact.id ?? record.contactId ?? record.id);
+  const id = readSimplexStringId(contact.contactId ?? contact.id ?? record.contactId ?? record.id);
   if (!id) {
     return null;
   }
   const profile = (contact.profile as Record<string, unknown> | undefined) ?? {};
   const name =
-    toId(contact.localDisplayName) ??
-    toId(profile.displayName) ??
-    toId(profile.fullName) ??
-    toId(record.localDisplayName) ??
+    readSimplexStringId(contact.localDisplayName) ??
+    readSimplexStringId(profile.displayName) ??
+    readSimplexStringId(profile.fullName) ??
+    readSimplexStringId(record.localDisplayName) ??
     undefined;
   return {
     kind: "user",
@@ -112,7 +87,7 @@ function mapGroupEntry(entry: unknown): ChannelDirectoryEntry | null {
     (record.groupInfo as Record<string, unknown> | undefined) ??
     (record.group as Record<string, unknown> | undefined) ??
     record;
-  const id = toId(group.groupId ?? group.id ?? record.groupId ?? record.id);
+  const id = readSimplexStringId(group.groupId ?? group.id ?? record.groupId ?? record.id);
   if (!id) {
     return null;
   }
@@ -121,10 +96,10 @@ function mapGroupEntry(entry: unknown): ChannelDirectoryEntry | null {
     (group.profile as Record<string, unknown> | undefined) ??
     {};
   const name =
-    toId(group.localDisplayName) ??
-    toId(profile.displayName) ??
-    toId(profile.fullName) ??
-    toId(record.localDisplayName) ??
+    readSimplexStringId(group.localDisplayName) ??
+    readSimplexStringId(profile.displayName) ??
+    readSimplexStringId(profile.fullName) ??
+    readSimplexStringId(record.localDisplayName) ??
     undefined;
   return {
     kind: "group",
@@ -140,7 +115,7 @@ function mapMemberEntry(entry: unknown): ChannelDirectoryEntry | null {
   }
   const record = entry as Record<string, unknown>;
   const member = (record.groupMember as Record<string, unknown> | undefined) ?? record;
-  const id = toId(
+  const id = readSimplexStringId(
     member.groupMemberId ??
       member.memberId ??
       member.contactId ??
@@ -152,9 +127,9 @@ function mapMemberEntry(entry: unknown): ChannelDirectoryEntry | null {
   }
   const profile = (member.profile as Record<string, unknown> | undefined) ?? {};
   const name =
-    toId(member.localDisplayName) ??
-    toId(profile.displayName) ??
-    toId(profile.fullName) ??
+    readSimplexStringId(member.localDisplayName) ??
+    readSimplexStringId(profile.displayName) ??
+    readSimplexStringId(profile.fullName) ??
     undefined;
   return {
     kind: "user",
@@ -218,34 +193,19 @@ function readDirectoryIdCandidate(query?: string | null): string | null {
   return parseSimplexNumericId(stripped) === null ? null : stripped;
 }
 
-async function readActiveUserInfoFromClient(params: {
-  client: SimplexClient;
-  timeoutMs: number;
-}): Promise<ActiveUserInfo | null> {
-  const user = (await params.client.getActiveUser({
-    timeoutMs: params.timeoutMs,
-  })) as Record<string, unknown> | undefined;
-  if (!user || typeof user !== "object") {
-    return null;
-  }
-  const profile = (user.profile as Record<string, unknown> | undefined) ?? {};
-  const userId = toId(user.userId ?? user.id ?? profile.userId);
-  const displayName = toId(profile.displayName) ?? toId(profile.fullName) ?? toId(user.displayName);
-  return { userId, displayName, raw: user };
-}
-
 async function fetchActiveUserInfo(
   account: ResolvedSimplexAccount,
   runtime: RuntimeEnv
-): Promise<ActiveUserInfo | null> {
-  const timeoutMs = resolveDirectoryTimeoutMs(account);
+): Promise<SimplexActiveUserInfo | null> {
+  const timeoutMs = resolveSimplexDirectoryTimeoutMs(account);
   try {
     return await withSimplexClient({
       account,
-      run: async (client) => await readActiveUserInfoFromClient({ client, timeoutMs }),
+      run: async (client) =>
+        await readSimplexActiveUserInfoFromClient({ account, client, timeoutMs }),
     });
   } catch (err) {
-    runtime.error?.(`simplex: failed to read active user: ${String(err)}`);
+    runtime.error?.(`simplex: failed to read active user: ${simplexErrorMessage(err)}`);
     return null;
   }
 }
@@ -256,22 +216,22 @@ async function listContactsLive(params: {
   query?: string | null;
   limit?: number | null;
 }): Promise<ChannelDirectoryEntry[]> {
-  const timeoutMs = resolveDirectoryTimeoutMs(params.account);
+  const timeoutMs = resolveSimplexDirectoryTimeoutMs(params.account);
   return await withSimplexClient({
     account: params.account,
     run: async (client) => {
-      const activeUser = await readActiveUserInfoFromClient({ client, timeoutMs });
-      const activeUserId = activeUser?.userId;
-      if (!activeUserId) {
-        return [];
-      }
-      const userId = parseSimplexNumericId(activeUserId);
+      const activeUser = await readSimplexActiveUserInfoFromClient({
+        account: params.account,
+        client,
+        timeoutMs,
+      });
+      const userId = activeUser?.numericUserId ?? null;
       if (userId === null) {
         return [];
       }
       const query = normalizeSimplexDirectoryQuery(params.query);
       const contacts = await client.listContacts(userId, { timeoutMs }).catch((err): unknown[] => {
-        if (isEmptyRuntimeListError(err)) {
+        if (isSimplexEmptyRuntimeListError(err)) {
           return [];
         }
         throw err;
@@ -292,16 +252,16 @@ async function listGroupsLive(params: {
   query?: string | null;
   limit?: number | null;
 }): Promise<ChannelDirectoryEntry[]> {
-  const timeoutMs = resolveDirectoryTimeoutMs(params.account);
+  const timeoutMs = resolveSimplexDirectoryTimeoutMs(params.account);
   return await withSimplexClient({
     account: params.account,
     run: async (client) => {
-      const activeUser = await readActiveUserInfoFromClient({ client, timeoutMs });
-      const activeUserId = activeUser?.userId;
-      if (!activeUserId) {
-        return [];
-      }
-      const userId = parseSimplexNumericId(activeUserId);
+      const activeUser = await readSimplexActiveUserInfoFromClient({
+        account: params.account,
+        client,
+        timeoutMs,
+      });
+      const userId = activeUser?.numericUserId ?? null;
       if (userId === null) {
         return [];
       }
@@ -309,7 +269,7 @@ async function listGroupsLive(params: {
       const groups = await client
         .listGroups({ userId, search: query }, { timeoutMs })
         .catch((err): unknown[] => {
-          if (isEmptyRuntimeListError(err)) {
+          if (isSimplexEmptyRuntimeListError(err)) {
             return [];
           }
           throw err;
@@ -334,14 +294,14 @@ async function listGroupMembersLive(params: {
   if (groupId === null) {
     return [];
   }
-  const timeoutMs = resolveDirectoryTimeoutMs(params.account);
+  const timeoutMs = resolveSimplexDirectoryTimeoutMs(params.account);
   return await withSimplexClient({
     account: params.account,
     run: async (client) => {
       const members = await client
         .listGroupMembers({ groupId }, { timeoutMs })
         .catch((err): unknown[] => {
-          if (isEmptyRuntimeListError(err)) {
+          if (isSimplexEmptyRuntimeListError(err)) {
             return [];
           }
           throw err;

@@ -19,7 +19,7 @@ const runtimeMock = vi.hoisted(() => ({
         response: {},
       })
     ),
-    listContacts: vi.fn(async () => [] as unknown[]),
+    listContacts: vi.fn(async (): Promise<unknown[]> => []),
     deleteAddress: vi.fn(async () => ({})),
   },
 }));

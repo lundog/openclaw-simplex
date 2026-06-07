@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import type { SimplexChatContext } from "../../types/events.js";
-import { resolveSimplexInboundAccess } from "./simplex-inbound-auth.js";
+import { resolveSimplexInboundAccess, type SimplexInboundCore } from "./simplex-inbound-auth.js";
 
 function account(config: ResolvedSimplexAccount["config"] = {}): ResolvedSimplexAccount {
   return {
@@ -44,7 +45,7 @@ function runtimeCore(
     mentioned?: boolean;
     controlCommand?: boolean;
   } = {}
-) {
+): SimplexInboundCore {
   return {
     channel: {
       commands: {
@@ -69,13 +70,18 @@ function runtimeCore(
   };
 }
 
+const runtimeLog = vi.fn();
 const runtime = {
-  log: vi.fn(),
+  log: runtimeLog,
   error: vi.fn(),
   exit: vi.fn(),
-} as never;
+} as RuntimeEnv;
 
 describe("resolveSimplexInboundAccess", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("creates a pairing request and rejects unknown DMs in pairing mode", async () => {
     const core = runtimeCore();
     const replyToPairingRequest = vi.fn(async () => undefined);
@@ -84,7 +90,7 @@ describe("resolveSimplexInboundAccess", () => {
       account: account({ dmPolicy: "pairing" }),
       cfg: {},
       runtime,
-      core: core as never,
+      core,
       context: directContext(),
       rawBody: "hello",
       normalizedSenderId: "42",
@@ -104,7 +110,7 @@ describe("resolveSimplexInboundAccess", () => {
       account: account({ groupPolicy: "allowlist", groupAllowFrom: ["group:7"] }),
       cfg: {},
       runtime,
-      core: runtimeCore({ mentioned: true }) as never,
+      core: runtimeCore({ mentioned: true }),
       context: groupContext(),
       rawBody: "@agent status",
       normalizedSenderId: "42",
@@ -118,6 +124,27 @@ describe("resolveSimplexInboundAccess", () => {
     });
   });
 
+  it("logs group id and sender details for allowlist drops", async () => {
+    const result = await resolveSimplexInboundAccess({
+      account: account({ groupPolicy: "allowlist", groupAllowFrom: ["group:99"] }),
+      cfg: {},
+      runtime,
+      core: runtimeCore({ mentioned: true }),
+      context: groupContext(),
+      rawBody: "@agent status",
+      normalizedSenderId: "42",
+      routeAgentId: "agent",
+      replyToPairingRequest: vi.fn(),
+    });
+
+    expect(result.allowed).toBe(false);
+    expect(runtimeLog).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'groupId=7 group="Ops" sender="42" senderName="Alice" reason=not-allowlisted'
+      )
+    );
+  });
+
   it("rejects unauthorized group control commands", async () => {
     const result = await resolveSimplexInboundAccess({
       account: account({ groupPolicy: "open" }),
@@ -128,7 +155,7 @@ describe("resolveSimplexInboundAccess", () => {
         commandAuthorized: false,
         mentioned: true,
         controlCommand: true,
-      }) as never,
+      }),
       context: groupContext(),
       rawBody: "!approve",
       normalizedSenderId: "42",

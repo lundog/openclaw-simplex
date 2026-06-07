@@ -1,4 +1,4 @@
-const SIMPLEX_LINK_REGEX = /\b(simplex:\/\/[^\s"'<>]+|https?:\/\/[^\s"'<>]+)/gi;
+const SIMPLEX_LINK_REGEX = /\b(simplex:\/{1,2}[^\s"'<>]+|https?:\/\/[^\s"'<>]+)/gi;
 
 function collectStrings(value: unknown, out: string[]): void {
   if (typeof value === "string") {

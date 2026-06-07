@@ -4,10 +4,45 @@ import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { SIMPLEX_CHANNEL_ID } from "../../constants.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import type { SimplexChatContext } from "../../types/events.js";
-import type { getSimplexRuntime } from "../runtime.js";
 import { isSimplexAllowlisted } from "../security/simplex-security.js";
 
-type SimplexRuntimeCore = ReturnType<typeof getSimplexRuntime>;
+export type SimplexInboundCore = {
+  channel: {
+    commands: {
+      shouldComputeCommandAuthorized: (text: string, cfg: OpenClawConfig) => boolean;
+      resolveCommandAuthorizedFromAuthorizers: (params: {
+        useAccessGroups: boolean;
+        authorizers: Array<{ configured: boolean; allowed: boolean }>;
+      }) => boolean;
+      shouldHandleTextCommands: (params: { cfg: OpenClawConfig; surface: string }) => boolean;
+      isControlCommandMessage: (text: string, cfg: OpenClawConfig) => boolean;
+    };
+    pairing: {
+      readAllowFromStore: (params: {
+        channel: typeof SIMPLEX_CHANNEL_ID;
+        accountId: string;
+      }) => Promise<string[]>;
+      upsertPairingRequest: (params: {
+        channel: typeof SIMPLEX_CHANNEL_ID;
+        id: string | number;
+        accountId: string;
+        meta?: Record<string, string | null | undefined>;
+      }) => Promise<{ code: string; created: boolean }>;
+      buildPairingReply: (params: {
+        channel: typeof SIMPLEX_CHANNEL_ID;
+        idLine: string;
+        code: string;
+      }) => string;
+    };
+    mentions: {
+      buildMentionRegexes: (cfg: OpenClawConfig, agentId: string) => RegExp[];
+      matchesMentionPatterns: (text: string, mentionRegexes: RegExp[]) => boolean;
+    };
+    text: {
+      hasControlCommand: (text: string, cfg: OpenClawConfig) => boolean;
+    };
+  };
+};
 
 export type SimplexInboundAccessResult = {
   allowed: boolean;
@@ -32,11 +67,22 @@ function resolveSimplexGroupRequireMention(params: {
   return true;
 }
 
+function formatGroupDropDetails(params: { context: SimplexChatContext; reason: string }): string {
+  const fields = [
+    `groupId=${params.context.chatId}`,
+    params.context.chatLabel ? `group=${JSON.stringify(params.context.chatLabel)}` : null,
+    params.context.senderId ? `sender=${JSON.stringify(params.context.senderId)}` : null,
+    params.context.senderName ? `senderName=${JSON.stringify(params.context.senderName)}` : null,
+    `reason=${params.reason}`,
+  ].filter((field): field is string => Boolean(field));
+  return fields.join(" ");
+}
+
 export async function resolveSimplexInboundAccess(params: {
   account: ResolvedSimplexAccount;
   cfg: OpenClawConfig;
   runtime: RuntimeEnv;
-  core: SimplexRuntimeCore;
+  core: SimplexInboundCore;
   context: SimplexChatContext;
   rawBody: string;
   normalizedSenderId?: string;
@@ -88,13 +134,21 @@ export async function resolveSimplexInboundAccess(params: {
 
   if (isGroup) {
     if (groupPolicy === "disabled") {
-      runtime.log?.(`[${account.accountId}] SimpleX drop group (groupPolicy=disabled)`);
+      runtime.log?.(
+        `[${account.accountId}] SimpleX drop group ${formatGroupDropDetails({
+          context,
+          reason: "groupPolicy=disabled",
+        })}`
+      );
       return { allowed: false, commandAuthorized };
     }
     if (groupPolicy === "allowlist") {
       if (effectiveGroupAllowFrom.length === 0) {
         runtime.log?.(
-          `[${account.accountId}] SimpleX drop group (groupPolicy=allowlist, empty allowlist)`
+          `[${account.accountId}] SimpleX drop group ${formatGroupDropDetails({
+            context,
+            reason: "groupPolicy=allowlist-empty",
+          })}`
         );
         return { allowed: false, commandAuthorized };
       }
@@ -106,7 +160,10 @@ export async function resolveSimplexInboundAccess(params: {
       });
       if (!allowed) {
         runtime.log?.(
-          `[${account.accountId}] SimpleX drop group sender ${context.senderId ?? "unknown"} (not allowlisted)`
+          `[${account.accountId}] SimpleX drop group ${formatGroupDropDetails({
+            context,
+            reason: "not-allowlisted",
+          })}`
         );
         return { allowed: false, commandAuthorized };
       }
@@ -177,7 +234,10 @@ export async function resolveSimplexInboundAccess(params: {
     effectiveWasMentioned = mentionGate.effectiveWasMentioned;
     if (mentionGate.shouldSkip) {
       runtime.log?.(
-        `[${account.accountId}] SimpleX drop group ${context.chatId} (mention required)`
+        `[${account.accountId}] SimpleX drop group ${formatGroupDropDetails({
+          context,
+          reason: "mention-required",
+        })}`
       );
       return { allowed: false, commandAuthorized, effectiveWasMentioned };
     }
@@ -186,7 +246,10 @@ export async function resolveSimplexInboundAccess(params: {
   if (isGroup && core.channel.commands.isControlCommandMessage(rawBody, cfg)) {
     if (commandAuthorized !== true) {
       runtime.log?.(
-        `[${account.accountId}] SimpleX drop control command from ${context.senderId ?? "unknown"}`
+        `[${account.accountId}] SimpleX drop group ${formatGroupDropDetails({
+          context,
+          reason: "control-command-unauthorized",
+        })}`
       );
       return { allowed: false, commandAuthorized, effectiveWasMentioned };
     }

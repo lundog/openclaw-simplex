@@ -76,6 +76,8 @@ If messages arrive in SimpleX but the agent does not answer, check policy first:
 - <code>dmPolicy: "allowlist"</code> means the sender must match <code>allowFrom</code>
 - group traffic may be blocked by <code>groupPolicy</code> or <code>groupAllowFrom</code>
 - if the account requires mentions in groups, a group message without the bot mention will be ignored
+- SimpleX group counts in runtime diagnostics are advisory directory probes; group links and group message delivery can work even when <code>/_groups</code> reports an empty list.
+- If a poll action is delivered successfully but OpenClaw logs an incomplete turn, check the tool result first. A poll-only model turn can be delivered as a tool action without a separate final text reply.
 
 List pending pairing requests:
 

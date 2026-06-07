@@ -3,28 +3,46 @@ import { describe, expect, it, vi } from "vitest";
 import type { SimplexClient } from "../../simplex/runtime/client.js";
 import { connectSimplexWithRetry } from "./simplex-connect.js";
 
+function simplexClient(connect: () => Promise<void>): SimplexClient {
+  return { connect } as SimplexClient;
+}
+
+function runtimeEnv(params: {
+  messages?: string[];
+  error?: (message: string) => void;
+}): RuntimeEnv {
+  return {
+    log() {},
+    error: (...args: unknown[]) => {
+      const message = args[0];
+      if (typeof message === "string") {
+        if (params.error) {
+          params.error(message);
+        } else {
+          params.messages?.push(message);
+        }
+      }
+    },
+    exit() {
+      throw new Error("unexpected exit");
+    },
+  };
+}
+
 describe("connectSimplexWithRetry", () => {
   it("keeps retrying by default until the SimpleX runtime becomes reachable", async () => {
     const messages: string[] = [];
     let attempts = 0;
-    const client = {
-      async connect() {
-        attempts += 1;
-        if (attempts < 3) {
-          throw new Error("runtime unavailable");
-        }
-      },
-    } as unknown as SimplexClient;
+    const client = simplexClient(async () => {
+      attempts += 1;
+      if (attempts < 3) {
+        throw new Error("runtime unavailable");
+      }
+    });
 
     await connectSimplexWithRetry({
       client,
-      runtime: {
-        log() {},
-        error: (message: string) => messages.push(message),
-        exit() {
-          throw new Error("unexpected exit");
-        },
-      } as unknown as RuntimeEnv,
+      runtime: runtimeEnv({ messages }),
       accountId: "default",
       abortSignal: new AbortController().signal,
       baseDelayMs: 0,
@@ -39,22 +57,14 @@ describe("connectSimplexWithRetry", () => {
   });
 
   it("still honors an explicit finite attempt budget", async () => {
-    const client = {
-      async connect() {
-        throw new Error("runtime unavailable");
-      },
-    } as unknown as SimplexClient;
+    const client = simplexClient(async () => {
+      throw new Error("runtime unavailable");
+    });
 
     await expect(
       connectSimplexWithRetry({
         client,
-        runtime: {
-          log() {},
-          error() {},
-          exit() {
-            throw new Error("unexpected exit");
-          },
-        } as unknown as RuntimeEnv,
+        runtime: runtimeEnv({}),
         accountId: "default",
         abortSignal: new AbortController().signal,
         attempts: 2,
@@ -67,23 +77,15 @@ describe("connectSimplexWithRetry", () => {
   it("stops immediately when abort happens during a failed connect attempt", async () => {
     const abortController = new AbortController();
     const error = vi.fn();
-    const client = {
-      async connect() {
-        abortController.abort();
-        throw new Error("runtime unavailable");
-      },
-    } as unknown as SimplexClient;
+    const client = simplexClient(async () => {
+      abortController.abort();
+      throw new Error("runtime unavailable");
+    });
 
     await expect(
       connectSimplexWithRetry({
         client,
-        runtime: {
-          log() {},
-          error,
-          exit() {
-            throw new Error("unexpected exit");
-          },
-        } as unknown as RuntimeEnv,
+        runtime: runtimeEnv({ error }),
         accountId: "default",
         abortSignal: abortController.signal,
         baseDelayMs: 0,

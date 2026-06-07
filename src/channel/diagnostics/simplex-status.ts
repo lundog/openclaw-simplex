@@ -95,7 +95,9 @@ export function buildSimplexStatus(): NonNullable<
       { text: `SimpleX active user: ${probe.activeUser.state}` },
       { text: `SimpleX users: ${probe.users.state} (${probe.users.count ?? "unknown"})` },
       { text: `SimpleX contacts: ${probe.contacts.state} (${probe.contacts.count ?? "unknown"})` },
-      { text: `SimpleX groups: ${probe.groups.state} (${probe.groups.count ?? "unknown"})` },
+      {
+        text: `SimpleX groups directory: ${probe.groups.state} (${probe.groups.count ?? "unknown"}, advisory)`,
+      },
       { text: `SimpleX live replies: ${probe.liveMessages.state}` },
       { text: `SimpleX TTL: ${probe.ttl.state}` },
       { text: `SimpleX verification: ${probe.verification.state}` },
