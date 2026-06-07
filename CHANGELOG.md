@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.3] - 2026-06-07
+
+### Added
+
+- Added SimpleX v6.5.4 payload fixture coverage for direct, group, file, command response, link extraction, and command error shapes.
+- Added invite revocation coverage and documented the `openclaw simplex invite revoke` CLI flow.
+- Added configurable `connection.directoryTimeoutMs` for live SimpleX directory and status probes.
+
+### Changed
+
+- Shared SimpleX directory/status probe behavior across channel directory lookups and runtime capability diagnostics.
+- Narrowed inbound authorization and dispatch dependencies to smaller OpenClaw runtime interfaces for clearer channel boundaries.
+- Reduced test-only broad casts and strengthened typed mock coverage.
+
+### Fixed
+
+- Fixed SimpleX inbound reply delivery so external channel replies bypass generic channel routing before delivery.
+- Fixed outbound SimpleX target normalization for prefixed direct and group ids.
+- Fixed SimpleX `/connect` and `/connect plan` link handling so native and short web invite links are passed unquoted.
+- Fixed pending inbound file timeout cleanup when file transfers complete or are replaced.
+- Treated SimpleX group directory counts as advisory in status and troubleshooting docs.
+
 ## [1.7.2] - 2026-06-04
 
 ### Fixed
