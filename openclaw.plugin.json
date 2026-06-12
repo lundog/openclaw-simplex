@@ -169,6 +169,18 @@
             },
             "additionalProperties": false
           },
+          "files": {
+            "type": "object",
+            "properties": {
+              "inboundDir": {
+                "type": "string"
+              },
+              "outboundDir": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
           "experimentalChannels": {
             "type": "boolean"
           },
@@ -402,6 +414,18 @@
                       "type": "integer",
                       "exclusiveMinimum": 0,
                       "maximum": 9007199254740991
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "files": {
+                  "type": "object",
+                  "properties": {
+                    "inboundDir": {
+                      "type": "string"
+                    },
+                    "outboundDir": {
+                      "type": "string"
                     }
                   },
                   "additionalProperties": false

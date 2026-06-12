@@ -59,6 +59,21 @@ const SimplexFilePolicySchema = z
   })
   .strict();
 
+// Shared-volume file exchange (cross-container deployments).
+// inboundDir is the simplex-chat runtime's --files-folder (e.g.
+// /simplex/inbound); the WS API reports received files relative to it, so
+// the plugin needs it to locate received files on disk. Defaults to /tmp,
+// where simplex-chat saves files when no --files-folder is configured.
+// outboundDir is a directory writable by OpenClaw and readable by
+// simplex-chat (e.g. /simplex/outbound); outbound media is staged there
+// before sending. Unset = default single-filesystem behavior.
+const SimplexFilesSchema = z
+  .object({
+    inboundDir: z.string().optional(),
+    outboundDir: z.string().optional(),
+  })
+  .strict();
+
 export const SimplexAccountConfigSchema = z
   .object({
     name: z.string().optional(),
@@ -77,6 +92,7 @@ export const SimplexAccountConfigSchema = z
     streaming: SimplexStreamingSchema.optional(),
     messageTtlSeconds: z.number().int().positive().optional(),
     filePolicy: SimplexFilePolicySchema.optional(),
+    files: SimplexFilesSchema.optional(),
     experimentalChannels: z.boolean().optional(),
     groupPolicy: GroupPolicySchema.optional(),
     groupAllowFrom: SimplexAllowFromListSchema,

@@ -1,9 +1,16 @@
 import path from "node:path";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import { resolveChannelMediaMaxBytes } from "openclaw/plugin-sdk/media-runtime";
+import { resolveMediaBufferPath } from "openclaw/plugin-sdk/media-store";
 import { SIMPLEX_CHANNEL_ID } from "../../constants.js";
 import type { SimplexComposedMessage, SimplexMsgContent } from "../../types/simplex.js";
 import { getSimplexRuntime } from "../runtime.js";
+import {
+  isSimplexReadablePath,
+  resolveSimplexOutboundDir,
+  stageOutboundBuffer,
+  stageOutboundLocalFile,
+} from "./outbound-files.js";
 
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024;
 
@@ -25,6 +32,7 @@ export function resolveSimplexMediaMaxBytes(params: {
 async function resolveMediaPath(params: {
   mediaUrl: string;
   maxBytes: number;
+  outboundDir?: string;
 }): Promise<{ path: string; contentType?: string; fileName?: string }> {
   const core = getSimplexRuntime();
   const mediaUrlLower = params.mediaUrl.toLowerCase();
@@ -34,6 +42,16 @@ async function resolveMediaPath(params: {
       maxBytes: params.maxBytes,
       filePathHint: params.mediaUrl,
     });
+    // Shared outbound dir configured: write the buffer where simplex-chat
+    // can read it (cross-container deployments).
+    if (params.outboundDir) {
+      const staged = await stageOutboundBuffer({
+        outboundDir: params.outboundDir,
+        buffer: fetched.buffer,
+        fileName: fetched.fileName,
+      });
+      return { path: staged, contentType: fetched.contentType, fileName: fetched.fileName };
+    }
     const saved = await core.channel.media.saveMediaBuffer(
       fetched.buffer,
       fetched.contentType,
@@ -43,9 +61,29 @@ async function resolveMediaPath(params: {
     );
     return { path: saved.path, contentType: saved.contentType, fileName: fetched.fileName };
   }
-  const contentType = await core.media.detectMime({ filePath: params.mediaUrl });
-  const fileName = path.basename(params.mediaUrl);
-  return { path: params.mediaUrl, contentType, fileName };
+  // media://<subdir>/<id> references (e.g. media://inbound/<id> for files
+  // staged into OpenClaw's media store): resolve to the physical path via
+  // the store's read-side helper, then treat as a local path below.
+  let localPath = params.mediaUrl;
+  if (mediaUrlLower.startsWith("media://")) {
+    const match = /^media:\/\/([^/]+)\/(.+)$/.exec(params.mediaUrl);
+    if (!match?.[1] || !match[2]) {
+      throw new Error(`Invalid media reference: ${params.mediaUrl}`);
+    }
+    localPath = await resolveMediaBufferPath(match[2], match[1]);
+  }
+  const contentType = await core.media.detectMime({ filePath: localPath });
+  const fileName = path.basename(localPath);
+  // Local path that simplex-chat cannot read: copy it into the shared
+  // outbound dir first.
+  if (params.outboundDir && !isSimplexReadablePath(localPath, params.outboundDir)) {
+    const staged = await stageOutboundLocalFile({
+      outboundDir: params.outboundDir,
+      sourcePath: localPath,
+    });
+    return { path: staged, contentType, fileName };
+  }
+  return { path: localPath, contentType, fileName };
 }
 
 function buildMediaMsgContent(params: {
@@ -124,13 +162,17 @@ export async function buildComposedMessages(params: {
     cfg: params.cfg,
     accountId: params.accountId,
   });
+  const outboundDir = resolveSimplexOutboundDir({
+    cfg: params.cfg,
+    accountId: params.accountId,
+  });
 
   for (let i = 0; i < mediaList.length; i += 1) {
     const mediaUrl = mediaList[i];
     if (!mediaUrl) {
       continue;
     }
-    const resolved = await resolveMediaPath({ mediaUrl, maxBytes });
+    const resolved = await resolveMediaPath({ mediaUrl, maxBytes, outboundDir });
     const caption = i === 0 ? text : "";
     const msgContent = buildMediaMsgContent({
       text: caption,
