@@ -49,6 +49,8 @@ Plugin-side settings:
 - <code>connection.allowUnsafeRemoteWs</code>
 - <code>connection.connectTimeoutMs</code>
 - <code>connection.autoAcceptFiles</code>
+- <code>connection.filesFolder</code>
+- <code>connection.outboundFolder</code>
 - <code>streaming.nativeTransport</code> and related live-reply throttling fields
 - <code>messageTtlSeconds</code> and <code>filePolicy</code>
 - <code>dmPolicy</code>, <code>allowFrom</code>, <code>groupPolicy</code>
@@ -58,6 +60,56 @@ Runtime-side startup flags:
 - relay and proxy selection: <code>--server</code>, <code>--xftp-server</code>, <code>--socks-proxy</code>, <code>--host-mode</code>, <code>--smp-proxy</code>
 - local storage/layout: <code>--database</code>, <code>--files-folder</code>, <code>--temp-folder</code>, <code>--log-file</code>
 - runtime process behavior: <code>--device-name</code>, <code>--maintenance</code>, <code>--mute</code>, <code>--mark-read</code>
+
+### Locating received files (`connection.filesFolder`)
+
+<Note>
+  <code>connection.filesFolder</code> is the path where <strong>OpenClaw</strong> reads files the runtime received. When the runtime is started with <code>--files-folder</code>, it reports received files by <em>name only</em> (not a full path), and the plugin joins that name to <code>connection.filesFolder</code> (default <code>~/.simplex/files</code>) to read the bytes. Without <code>--files-folder</code> the runtime reports absolute paths and this setting is unused.
+</Note>
+
+The name-only reporting is deliberate, and it is what lets the runtime and OpenClaw refer to the same files from <em>different</em> locations. How you set <code>connection.filesFolder</code> depends on the topology:
+
+- <strong>Shared filesystem</strong> (OpenClaw and the runtime see the same paths — e.g. both on one host, or both in one container): set <code>connection.filesFolder</code> to the same path as <code>--files-folder</code>.
+- <strong>Containerized runtime with a shared volume</strong>: when the runtime runs in a container, its filesystem is separate from OpenClaw's (whether or not OpenClaw is containerized too), and each side usually mounts the shared volume at a different path — that is fine. Set <code>--files-folder</code> to the runtime's mount and <code>connection.filesFolder</code> to OpenClaw's mount of the same volume. An absolute path would break here, because the runtime's directory does not exist on OpenClaw's side; the name-only reporting is exactly what bridges the two mounts.
+
+```yaml
+services:
+  simplex-chat:
+    volumes:
+      - simplex-files:/data/files
+    command: ["...", "--files-folder", "/data/files"]
+  openclaw:
+    volumes:
+      - simplex-files:/shared/simplex
+    # channels.openclaw-simplex.connection.filesFolder = /shared/simplex
+volumes:
+  simplex-files:
+```
+
+The sidecar writes `/data/files/photo.jpg` and reports `photo.jpg`; OpenClaw reads it from `/shared/simplex/photo.jpg` — same volume, different mount paths, bridged by the file name.
+
+### Sending files (`connection.outboundFolder`)
+
+<Note>
+  <code>connection.outboundFolder</code> is the directory <strong>OpenClaw</strong> stages an outgoing file into before telling the runtime to send it. There is no runtime flag for this — on send OpenClaw passes a path that the runtime resolves on <em>its own</em> side, so the file must be readable there. When OpenClaw and the runtime share a filesystem (the default), leave this unset and the local file path is passed as-is; it only matters when the runtime is containerized.
+</Note>
+
+This is the mirror image of inbound, with one crucial difference. Inbound is name-only, so the two sides may mount the shared directory at <em>different</em> paths. Outbound sends a full path <em>to</em> the runtime, so both sides must see it at the <strong>same</strong> path. Mount a shared volume verbatim — the identical absolute path inside the runtime and wherever OpenClaw runs — and point <code>connection.outboundFolder</code> at it:
+
+```yaml
+services:
+  simplex-chat:
+    volumes:
+      - simplex-outbound:/tmp/simplex-outbound
+  openclaw:
+    volumes:
+      - simplex-outbound:/tmp/simplex-outbound
+    # channels.openclaw-simplex.connection.outboundFolder = /tmp/simplex-outbound
+volumes:
+  simplex-outbound:
+```
+
+OpenClaw stages `pic.jpg` into `/tmp/simplex-outbound` and passes `/tmp/simplex-outbound/pic.jpg`; the runtime reads that same path, then the staged file is removed after the send. (If OpenClaw runs on the host rather than in a container, bind-mount a host directory onto the identical path inside the runtime container.)
 
 ### Manual service files
 
