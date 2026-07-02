@@ -1,11 +1,16 @@
+import os from "node:os";
+import path from "node:path";
 import type { PluginRuntime } from "openclaw/plugin-sdk/runtime-store";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setSimplexRuntime } from "../runtime.js";
 import {
   dispatchInbound,
   finalizePendingFile,
+  markFileAccepted,
   type PendingInboundFile,
   queuePendingFile,
+  resolveSimplexInboundDir,
+  shouldRetryFileAccept,
 } from "./simplex-inbound-files.js";
 
 const simplexClientMock = vi.hoisted(() => ({
@@ -82,6 +87,29 @@ function pending(sendPayload = vi.fn(async () => undefined)): PendingInboundFile
   };
 }
 
+describe("resolveSimplexInboundDir", () => {
+  it("defaults the inbound files-folder to ~/.simplex/files", () => {
+    expect(resolveSimplexInboundDir(pending().account)).toBe(
+      path.join(os.homedir(), ".simplex/files")
+    );
+  });
+
+  it("uses a configured files-folder when set", () => {
+    const account = pending().account;
+    account.config.connection = {
+      ...account.config.connection,
+      filesFolder: "/var/lib/simplex-files",
+    };
+    expect(resolveSimplexInboundDir(account)).toBe("/var/lib/simplex-files");
+  });
+
+  it("expands a leading ~ in a configured files-folder", () => {
+    const account = pending().account;
+    account.config.connection = { ...account.config.connection, filesFolder: "~/custom/files" };
+    expect(resolveSimplexInboundDir(account)).toBe(path.join(os.homedir(), "custom/files"));
+  });
+});
+
 describe("simplex inbound live replies", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -133,6 +161,29 @@ describe("simplex inbound live replies", () => {
     await vi.advanceTimersByTimeAsync(90_000);
 
     expect(cancelFile).not.toHaveBeenCalled();
+  });
+
+  it("tracks accept retries for queued pending files", async () => {
+    vi.useFakeTimers();
+    installRuntime(async () => undefined);
+    const current = pending();
+    current.fileId = 42;
+    current.client = fileClient(vi.fn(async () => undefined));
+
+    // Unknown file: nothing queued, nothing to retry.
+    expect(shouldRetryFileAccept(current.account.accountId, 42)).toBe(false);
+
+    // Queued but not yet accepted (initial /freceive failed): retry wanted.
+    queuePendingFile({ pending: current, accountId: current.account.accountId, fileId: 42 });
+    expect(shouldRetryFileAccept(current.account.accountId, 42)).toBe(true);
+
+    // Accepted: no further retries.
+    markFileAccepted(current.account.accountId, 42);
+    expect(shouldRetryFileAccept(current.account.accountId, 42)).toBe(false);
+
+    // Finalized: entry removed entirely.
+    await finalizePendingFile({ accountId: current.account.accountId, fileId: 42 });
+    expect(shouldRetryFileAccept(current.account.accountId, 42)).toBe(false);
   });
 
   it("replaces an older pending file timeout for the same key", async () => {
