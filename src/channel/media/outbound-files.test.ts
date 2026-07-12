@@ -2,9 +2,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  cleanupStagedOutboundFiles,
   isSimplexReadablePath,
   resolveSimplexOutboundClientDir,
   resolveSimplexOutboundDir,
@@ -12,6 +11,9 @@ import {
   stageOutboundLocalFile,
   toClientOutboundPath,
 } from "./outbound-files.js";
+
+// Keep in sync with STAGED_FILE_TTL_MS in outbound-files.ts.
+const STAGED_FILE_TTL_MS = 5 * 60_000;
 
 function cfg(
   connection: Record<string, unknown>,
@@ -92,16 +94,18 @@ describe("isSimplexReadablePath", () => {
   });
 });
 
-describe("staging + cleanup", () => {
+describe("staging + reaping", () => {
   let dir: string;
   beforeEach(async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "sx-outbound-"));
+    vi.useFakeTimers();
   });
   afterEach(async () => {
+    vi.useRealTimers();
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("stages a buffer with a unique name and cleans it up after send", async () => {
+  it("stages a buffer with a unique name and reaps it after the TTL", async () => {
     const staged = await stageOutboundBuffer({
       outboundDir: dir,
       buffer: new TextEncoder().encode("hello"),
@@ -109,15 +113,17 @@ describe("staging + cleanup", () => {
     });
     expect(staged.startsWith(dir)).toBe(true);
     expect(staged.endsWith("-pic.jpg")).toBe(true);
+
+    // still present right up to the TTL
+    await vi.advanceTimersByTimeAsync(STAGED_FILE_TTL_MS - 1);
     expect(await readFile(staged, "utf8")).toBe("hello");
 
-    await cleanupStagedOutboundFiles([
-      { fileSource: { filePath: staged }, msgContent: { type: "file", text: "" }, mentions: {} },
-    ]);
+    // gone once the TTL elapses
+    await vi.advanceTimersByTimeAsync(1);
     await expect(readFile(staged)).rejects.toThrow();
   });
 
-  it("with a client dir: writes on disk in outboundDir, sends the translated path, cleans up the real file", async () => {
+  it("with a client dir: sends the translated path, reaps the real on-disk file", async () => {
     const clientDir = "/data/.simplex/outbound";
     const sent = await stageOutboundBuffer({
       outboundDir: dir,
@@ -132,10 +138,8 @@ describe("staging + cleanup", () => {
     const onDisk = path.join(dir, path.basename(sent));
     expect(await readFile(onDisk, "utf8")).toBe("hi");
 
-    // cleanup is keyed by the sent path but deletes the on-disk file
-    await cleanupStagedOutboundFiles([
-      { fileSource: { filePath: sent }, msgContent: { type: "file", text: "" }, mentions: {} },
-    ]);
+    // the reaper is keyed by the sent path but deletes the on-disk file
+    await vi.advanceTimersByTimeAsync(STAGED_FILE_TTL_MS + 1);
     await expect(readFile(onDisk)).rejects.toThrow();
   });
 
@@ -158,16 +162,18 @@ describe("staging + cleanup", () => {
     expect(await readFile(staged, "utf8")).toBe("data");
   });
 
-  it("leaves non-staged (pre-existing) outbound files alone on cleanup", async () => {
+  it("reaps only staged files, leaving pre-existing files in the dir alone", async () => {
     const preexisting = path.join(dir, "keep.jpg");
     await writeFile(preexisting, "keep");
-    await cleanupStagedOutboundFiles([
-      {
-        fileSource: { filePath: preexisting },
-        msgContent: { type: "file", text: "" },
-        mentions: {},
-      },
-    ]);
+    const staged = await stageOutboundBuffer({
+      outboundDir: dir,
+      buffer: new TextEncoder().encode("bye"),
+      fileName: "drop.jpg",
+    });
+
+    await vi.advanceTimersByTimeAsync(STAGED_FILE_TTL_MS + 1);
+
+    await expect(readFile(staged)).rejects.toThrow();
     expect(await readFile(preexisting, "utf8")).toBe("keep");
   });
 });

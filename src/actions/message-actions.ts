@@ -2,7 +2,6 @@ import { readStringArrayParam } from "openclaw/plugin-sdk/channel-actions";
 import type { ChannelMessageActionName } from "openclaw/plugin-sdk/channel-contract";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import { normalizePollInput, resolvePollMaxSelections } from "openclaw/plugin-sdk/poll-runtime";
-import { cleanupStagedOutboundFiles } from "../channel/media/outbound-files.js";
 import { buildComposedMessages } from "../channel/media/simplex-media.js";
 import { renderSimplexPollText } from "../channel/messaging/simplex-outbound.js";
 import { resolveSimplexChatItemId } from "../simplex/runtime/api.js";
@@ -62,9 +61,9 @@ async function sendActionComposedMessages(params: {
         ttl: params.ttl ?? params.account.config.messageTtlSeconds,
       }),
   });
-  // Files staged into a shared outbound dir are no longer needed once the send
-  // command has been issued (the runtime has consumed the path).
-  await cleanupStagedOutboundFiles(params.composedMessages);
+  // Staged outbound files are reclaimed by the outbound-files reaper once the
+  // runtime has had time to read them; the send returning does not mean the
+  // async upload is done, so we deliberately do not delete them here.
   return { messageId: resolveSimplexChatItemId(chatItems[0]) };
 }
 

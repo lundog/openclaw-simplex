@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import type { ChannelAccountSnapshot } from "openclaw/plugin-sdk/channel-contract";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
+import { expandHome } from "../../fs-paths.js";
 import type { SimplexClient } from "../../simplex/runtime/client.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import { resolveSimplexMediaMaxBytes } from "../media/simplex-media.js";
@@ -21,16 +21,6 @@ const PENDING_FILE_TIMEOUT_MS = 90_000;
  * ~/.simplex/files`). Used only to resolve relative inbound paths.
  */
 const DEFAULT_INBOUND_FILES_FOLDER = "~/.simplex/files";
-
-function expandHome(value: string): string {
-  if (value === "~") {
-    return os.homedir();
-  }
-  if (value.startsWith("~/") || value.startsWith("~\\")) {
-    return path.join(os.homedir(), value.slice(2));
-  }
-  return value;
-}
 
 /**
  * Base directory for resolving relative inbound file paths. When the runtime is

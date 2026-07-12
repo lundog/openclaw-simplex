@@ -1,10 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { copyFile, mkdir, unlink, writeFile } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import { SIMPLEX_CHANNEL_ID } from "../../constants.js";
-import type { SimplexComposedMessage } from "../../types/simplex.js";
+import { expandHome } from "../../fs-paths.js";
 
 /**
  * Shared outbound directory support (external mode, containerized runtime).
@@ -27,22 +26,54 @@ import type { SimplexComposedMessage } from "../../types/simplex.js";
  *   so no verbatim path is required. Has no effect without `outboundFolder`.
  *
  * Staged files are tracked (keyed by the path sent to the runtime, mapped to the
- * actual on-disk path) and deleted after the send. When `outboundFolder` is
- * unset this module is inert and the local path is passed as-is. Native mode
- * never sets it (the embedded core shares the gateway's filesystem).
+ * actual on-disk path) and reclaimed by a per-file timer a short while after
+ * staging. Cleanup is deliberately NOT done on the send path: the send command
+ * only hands the path to the runtime, which reads and uploads the file
+ * asynchronously afterward, so deleting on send-return can race that read. When
+ * `outboundFolder` is unset this module is inert and the local path is passed
+ * as-is. Native mode never sets it (the embedded core shares the gateway's
+ * filesystem).
  */
 
-// sent path (as it appears in fileSource.filePath) -> actual on-disk path to delete
-const STAGED_FILES = new Map<string, string>();
+/**
+ * How long a staged outbound file is kept before the reaper deletes it. Must
+ * comfortably exceed the time the runtime needs to read/encrypt the source for
+ * upload after the send command returns; transfers are bounded by `mediaMaxMb`,
+ * so a few minutes is ample.
+ */
+const STAGED_FILE_TTL_MS = 5 * 60_000;
 
-function expandHome(value: string): string {
-  if (value === "~") {
-    return os.homedir();
+type StagedFile = {
+  onDisk: string;
+  timeout: ReturnType<typeof setTimeout>;
+};
+
+// sent path (as it appears in fileSource.filePath) -> staged on-disk file + reaper
+const STAGED_FILES = new Map<string, StagedFile>();
+
+/**
+ * Track a staged file and schedule its reclamation. Keyed by the path sent to
+ * the runtime; the mapped on-disk path is what is deleted (the two differ when
+ * `outboundFolderOnClient` translates the prefix). The timer is unref'd so it
+ * never keeps the process alive.
+ */
+function registerStagedFile(sentPath: string, onDiskPath: string): void {
+  const previous = STAGED_FILES.get(sentPath);
+  if (previous) {
+    clearTimeout(previous.timeout);
   }
-  if (value.startsWith("~/") || value.startsWith("~\\")) {
-    return path.join(os.homedir(), value.slice(2));
-  }
-  return value;
+  const timeout = setTimeout(() => {
+    const current = STAGED_FILES.get(sentPath);
+    if (!current) {
+      return;
+    }
+    STAGED_FILES.delete(sentPath);
+    void unlink(current.onDisk).catch(() => {
+      // Best-effort: the file may already be gone.
+    });
+  }, STAGED_FILE_TTL_MS);
+  timeout.unref?.();
+  STAGED_FILES.set(sentPath, { onDisk: onDiskPath, timeout });
 }
 
 /**
@@ -120,7 +151,7 @@ export async function stageOutboundBuffer(params: {
   await mkdir(params.outboundDir, { recursive: true });
   await writeFile(onDisk, params.buffer);
   const sent = toClientOutboundPath(onDisk, params.outboundDir, params.clientDir);
-  STAGED_FILES.set(sent, onDisk);
+  registerStagedFile(sent, onDisk);
   return sent;
 }
 
@@ -134,29 +165,6 @@ export async function stageOutboundLocalFile(params: {
   await mkdir(params.outboundDir, { recursive: true });
   await copyFile(params.sourcePath, onDisk);
   const sent = toClientOutboundPath(onDisk, params.outboundDir, params.clientDir);
-  STAGED_FILES.set(sent, onDisk);
+  registerStagedFile(sent, onDisk);
   return sent;
-}
-
-/**
- * Delete any staged outbound files referenced by the given composed messages.
- * Call after the send completes. Only files staged by this module are deleted
- * (looked up by the sent path, deleting the mapped on-disk file); pre-existing
- * files in the outbound dir are left alone.
- */
-export async function cleanupStagedOutboundFiles(
-  composedMessages: SimplexComposedMessage[]
-): Promise<void> {
-  for (const message of composedMessages) {
-    const filePath = message.fileSource?.filePath;
-    if (filePath && STAGED_FILES.has(filePath)) {
-      const onDisk = STAGED_FILES.get(filePath);
-      STAGED_FILES.delete(filePath);
-      if (onDisk) {
-        await unlink(onDisk).catch(() => {
-          // Best-effort: the file may already be gone.
-        });
-      }
-    }
-  }
 }

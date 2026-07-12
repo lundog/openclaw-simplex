@@ -4,7 +4,6 @@ import { parseSimplexNumericId, resolveSimplexChatItemId } from "../../simplex/r
 import { withSimplexClient } from "../../simplex/runtime/transport.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import type { SimplexComposedMessage } from "../../types/simplex.js";
-import { cleanupStagedOutboundFiles } from "../media/outbound-files.js";
 import { buildComposedMessages } from "../media/simplex-media.js";
 
 export async function sendSimplexComposedMessages(params: {
@@ -28,9 +27,9 @@ export async function sendSimplexComposedMessages(params: {
     ttl: params.ttl,
     liveMessage: params.liveMessage,
   });
-  // Files staged into a shared outbound dir are no longer needed once the send
-  // command has been issued (the runtime has consumed the path).
-  await cleanupStagedOutboundFiles(params.composedMessages);
+  // Staged outbound files are reclaimed by the outbound-files reaper once the
+  // runtime has had time to read them; the send returning does not mean the
+  // async upload is done, so we deliberately do not delete them here.
   const messageId = resolveSimplexChatItemId(chatItems[0]);
   return {
     messageId,

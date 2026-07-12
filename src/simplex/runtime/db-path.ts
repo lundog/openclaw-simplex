@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import { expandHome } from "../../fs-paths.js";
 
 type SimplexDbPathPlatform = NodeJS.Platform;
 
@@ -24,16 +25,6 @@ export function resolveSimplexDbFilePrefix(value: string): string {
 
 function resolveWindowsAppData(env: NodeJS.ProcessEnv): string {
   return env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming");
-}
-
-function expandHome(value: string): string {
-  if (value === "~") {
-    return os.homedir();
-  }
-  if (value.startsWith("~/") || value.startsWith("~\\")) {
-    return path.join(os.homedir(), value.slice(2));
-  }
-  return value;
 }
 
 function expandWindowsEnvPrefix(value: string, env: NodeJS.ProcessEnv): string {
