@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-07-19
+
+### Changed
+
+- Raised the minimum supported OpenClaw version to `2026.7.1` and aligned package compatibility metadata with the current plugin SDK surfaces.
+- Version floors now carry an explicit `-0` prerelease suffix (`>=2026.7.1-0`). npm's `latest` tag resolves to `2026.7.1-2`, which sorts below `2026.7.1` under semver, so a plain floor would have rejected the version a default `npm install openclaw` produces.
+- Zod schemas are now built with OpenClaw's own zod instance from `openclaw/plugin-sdk/zod` instead of a plugin-owned `zod` dependency, and `zod` was dropped from runtime dependencies.
+- Replaced the duplicated hand-rolled positive-integer parsers in the gateway methods and plugin CLI with a shared `readRequiredPositiveInteger` helper backed by the SDK's `readPositiveIntegerParam`.
+
+### Fixed
+
+- Fixed SimpleX channel config schema construction against OpenClaw `2026.7.x`, which inlines zod's types into its own bundled declarations. A plugin-owned zod no longer shares declaration identity with the host, so `buildCatchallMultiAccountChannelSchema` and `buildChannelConfigSchema` rejected the account schema and collapsed the inferred config type, breaking account-scoped policy fields in the runtime doctor and account resolution.
+- Fixed protocol id parsing so unsafe integers beyond `Number.MAX_SAFE_INTEGER` are rejected instead of being silently rounded to a different id.
+
 ## [1.7.3] - 2026-06-07
 
 ### Added

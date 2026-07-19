@@ -1,5 +1,6 @@
 import { renderQrPngDataUrl } from "openclaw/plugin-sdk/media-runtime";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import { readRequiredPositiveInteger } from "../params.js";
 import {
   connectSimplexLink,
   planSimplexConnectionLink,
@@ -61,20 +62,6 @@ function readRequiredString(params: Record<string, unknown> | undefined, key: st
   const value = typeof params?.[key] === "string" ? params[key].trim() : "";
   if (!value) {
     throw new Error(`${key} is required`);
-  }
-  return value;
-}
-
-function readRequiredInteger(params: Record<string, unknown> | undefined, key: string): number {
-  const raw = params?.[key];
-  const value =
-    typeof raw === "number"
-      ? raw
-      : typeof raw === "string" && /^[0-9]+$/.test(raw.trim())
-        ? Number(raw.trim())
-        : NaN;
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new Error(`${key} must be a positive integer`);
   }
   return value;
 }
@@ -279,7 +266,7 @@ export function registerSimplexGatewayMethods(api: OpenClawPluginApi): void {
           await acceptSimplexContactRequest({
             cfg: api.config,
             accountId: readAccountId(params),
-            contactRequestId: readRequiredInteger(params, "contactRequestId"),
+            contactRequestId: readRequiredPositiveInteger(params, "contactRequestId"),
           })
         );
       } catch (err) {
@@ -298,7 +285,7 @@ export function registerSimplexGatewayMethods(api: OpenClawPluginApi): void {
           await rejectSimplexContactRequest({
             cfg: api.config,
             accountId: readAccountId(params),
-            contactRequestId: readRequiredInteger(params, "contactRequestId"),
+            contactRequestId: readRequiredPositiveInteger(params, "contactRequestId"),
           })
         );
       } catch (err) {
