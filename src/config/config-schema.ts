@@ -8,6 +8,7 @@ import {
   DmPolicySchema,
   GroupPolicySchema,
   MarkdownConfigSchema,
+  MentionPatternsPolicySchema,
   ToolPolicySchema,
 } from "openclaw/plugin-sdk/channel-config-schema";
 import { z } from "openclaw/plugin-sdk/zod";
@@ -83,6 +84,7 @@ export const SimplexAccountConfigSchema = z
     experimentalChannels: z.boolean().optional(),
     groupPolicy: GroupPolicySchema.optional(),
     groupAllowFrom: SimplexAllowFromListSchema,
+    mentionPatterns: MentionPatternsPolicySchema.optional(),
     groups: z.object({}).catchall(groupConfigSchema).optional(),
     connection: SimplexConnectionSchema.optional(),
   })

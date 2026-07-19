@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Version floors now carry an explicit `-0` prerelease suffix (`>=2026.7.1-0`). npm's `latest` tag resolves to `2026.7.1-2`, which sorts below `2026.7.1` under semver, so a plain floor would have rejected the version a default `npm install openclaw` produces.
 - Zod schemas are now built with OpenClaw's own zod instance from `openclaw/plugin-sdk/zod` instead of a plugin-owned `zod` dependency, and `zod` was dropped from runtime dependencies.
 - Replaced the duplicated hand-rolled positive-integer parsers in the gateway methods and plugin CLI with a shared `readRequiredPositiveInteger` helper backed by the SDK's `readPositiveIntegerParam`.
+- Added an optional `mentionPatterns` account policy (`mode`/`allowIn`/`denyIn`) so agent name patterns can be scoped to specific SimpleX groups, and passed SimpleX provider/conversation context into OpenClaw's mention-regex builder, which previously ignored per-conversation mention policy.
 
 ### Fixed
 

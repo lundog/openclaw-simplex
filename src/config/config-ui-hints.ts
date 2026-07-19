@@ -220,6 +220,26 @@ const accountScopedUiHints = withAccountScope({
     help: "Allowed SimpleX senders for groups when groupPolicy is allowlist.",
     tags: ["security"],
   },
+  mentionPatterns: {
+    label: "Mention Patterns",
+    help: "Restrict where agent name patterns count as a mention. Use allowIn/denyIn with SimpleX group ids.",
+    advanced: true,
+  },
+  "mentionPatterns.mode": {
+    label: "Mention Pattern Mode",
+    help: '"allow" limits pattern matching to allowIn conversations; "deny" disables it in denyIn conversations.',
+    advanced: true,
+  },
+  "mentionPatterns.allowIn": {
+    label: "Mention Patterns Allowed In",
+    help: "SimpleX group ids where agent name patterns count as a mention.",
+    advanced: true,
+  },
+  "mentionPatterns.denyIn": {
+    label: "Mention Patterns Denied In",
+    help: "SimpleX group ids where agent name patterns must not count as a mention.",
+    advanced: true,
+  },
   groups: {
     label: "Group Overrides",
     help: "Optional per-group overrides for mention and tool policy behavior.",
