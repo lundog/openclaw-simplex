@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
+import { expandHome } from "../fs-paths.js";
 
 type RuntimeServiceProvider = "auto" | "systemd" | "launchd" | "sysvinit";
 
@@ -104,10 +105,6 @@ async function detectProvider(
   throw new Error(
     "Could not auto-detect a supported service manager. Use --provider systemd, --provider launchd, or --provider sysvinit."
   );
-}
-
-function expandHome(value: string): string {
-  return value.startsWith("~/") ? path.join(os.homedir(), value.slice(2)) : value;
 }
 
 function resolveRuntimeService(

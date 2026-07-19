@@ -61,6 +61,9 @@ async function sendActionComposedMessages(params: {
         ttl: params.ttl ?? params.account.config.messageTtlSeconds,
       }),
   });
+  // Staged outbound files are reclaimed by the outbound-files reaper once the
+  // runtime has had time to read them; the send returning does not mean the
+  // async upload is done, so we deliberately do not delete them here.
   return { messageId: resolveSimplexChatItemId(chatItems[0]) };
 }
 

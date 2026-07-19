@@ -27,6 +27,9 @@ export async function sendSimplexComposedMessages(params: {
     ttl: params.ttl,
     liveMessage: params.liveMessage,
   });
+  // Staged outbound files are reclaimed by the outbound-files reaper once the
+  // runtime has had time to read them; the send returning does not mean the
+  // async upload is done, so we deliberately do not delete them here.
   const messageId = resolveSimplexChatItemId(chatItems[0]);
   return {
     messageId,

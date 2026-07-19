@@ -244,6 +244,18 @@
               "autoAcceptFiles": {
                 "type": "boolean"
               },
+              "filesFolder": {
+                "type": "string",
+                "minLength": 1
+              },
+              "outboundFolder": {
+                "type": "string",
+                "minLength": 1
+              },
+              "outboundFolderOnClient": {
+                "type": "string",
+                "minLength": 1
+              },
               "connectTimeoutMs": {
                 "type": "integer",
                 "exclusiveMinimum": 0,
@@ -480,6 +492,18 @@
                     },
                     "autoAcceptFiles": {
                       "type": "boolean"
+                    },
+                    "filesFolder": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "outboundFolder": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "outboundFolderOnClient": {
+                      "type": "string",
+                      "minLength": 1
                     },
                     "connectTimeoutMs": {
                       "type": "integer",
