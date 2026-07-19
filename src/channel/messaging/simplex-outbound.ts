@@ -2,6 +2,7 @@ import type { ChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 import { createAttachedChannelResultAdapter } from "openclaw/plugin-sdk/channel-send-result";
 import { renderMessagePresentationFallbackText } from "openclaw/plugin-sdk/interactive-runtime";
 import { normalizePollInput } from "openclaw/plugin-sdk/poll-runtime";
+import { chunkTextForOutbound } from "openclaw/plugin-sdk/text-chunking";
 import { resolveSimplexAccount } from "../../config/accounts.js";
 import { SIMPLEX_CHANNEL_ID } from "../../constants.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
@@ -63,7 +64,11 @@ export function buildSimplexOutbound(): NonNullable<
 > {
   return {
     deliveryMode: "direct" as const,
+    // SimpleX silently drops JSON messages over ~15,610 bytes. `textChunkLimit`
+    // alone does nothing: the dispatcher only splits when a `chunker` is set too.
     textChunkLimit: 4000,
+    chunker: chunkTextForOutbound,
+    chunkerMode: "markdown",
     shouldTreatDeliveredTextAsVisible: ({ kind, text }) =>
       kind === "block" && typeof text === "string" && text.trim().length > 0,
     preferFinalAssistantVisibleText: true,

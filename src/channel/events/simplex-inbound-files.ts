@@ -3,6 +3,7 @@ import path from "node:path";
 import type { ChannelAccountSnapshot } from "openclaw/plugin-sdk/channel-contract";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
+import { DEFAULT_SIMPLEX_FILES_FOLDER } from "../../constants.js";
 import { expandHome } from "../../fs-paths.js";
 import type { SimplexClient } from "../../simplex/runtime/client.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
@@ -15,12 +16,9 @@ import { getSimplexRuntime } from "../runtime.js";
 
 const PENDING_FILE_TIMEOUT_MS = 90_000;
 
-/**
- * Default files-folder used by the external runtime, matching the default the
- * plugin's own `runtime` service launches `simplex-chat` with (`--files-folder
- * ~/.simplex/files`). Used only to resolve relative inbound paths.
- */
-const DEFAULT_INBOUND_FILES_FOLDER = "~/.simplex/files";
+export function resolveSimplexFilesFolder(configuredFilesFolder?: string): string {
+  return expandHome(configuredFilesFolder?.trim() || DEFAULT_SIMPLEX_FILES_FOLDER);
+}
 
 /**
  * Base directory for resolving relative inbound file paths. When the runtime is
@@ -32,8 +30,7 @@ const DEFAULT_INBOUND_FILES_FOLDER = "~/.simplex/files";
  * when no `--files-folder` is set — bypass this entirely.
  */
 export function resolveSimplexInboundDir(account: ResolvedSimplexAccount): string {
-  const configured = account.config.connection?.filesFolder?.trim();
-  return expandHome(configured || DEFAULT_INBOUND_FILES_FOLDER);
+  return resolveSimplexFilesFolder(account.config.connection?.filesFolder);
 }
 
 type SimplexReplyPayload = {

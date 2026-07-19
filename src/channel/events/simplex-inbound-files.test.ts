@@ -1,3 +1,4 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { PluginRuntime } from "openclaw/plugin-sdk/runtime-store";
@@ -107,6 +108,65 @@ describe("resolveSimplexInboundDir", () => {
     const account = pending().account;
     account.config.connection = { ...account.config.connection, filesFolder: "~/custom/files" };
     expect(resolveSimplexInboundDir(account)).toBe(path.join(os.homedir(), "custom/files"));
+  });
+});
+
+describe("finalizePendingFile media staging", () => {
+  let dir: string;
+  afterEach(async () => {
+    if (dir) {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("stages the file into media/inbound and exposes MediaPath/MediaPaths", async () => {
+    dir = await mkdtemp(path.join(os.tmpdir(), "sx-inbound-"));
+    const filePath = path.join(dir, "photo.jpg");
+    await writeFile(filePath, "IMG-BYTES");
+
+    const detectMime = vi.fn(async () => "image/jpeg");
+    const saveMediaBuffer = vi.fn(async () => ({
+      path: "/store/media/inbound/photo---uuid.jpg",
+      contentType: "image/jpeg",
+    }));
+    let capturedCtx: Record<string, unknown> | undefined;
+    setSimplexRuntime({
+      media: { detectMime },
+      channel: {
+        media: { saveMediaBuffer },
+        session: {
+          recordInboundSession: vi.fn(async ({ ctx }: { ctx: Record<string, unknown> }) => {
+            capturedCtx = ctx;
+          }),
+        },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: vi.fn(async () => undefined),
+        },
+      },
+    } as object as PluginRuntime);
+
+    const current = pending();
+    current.fileId = 7;
+    queuePendingFile({ pending: current, accountId: current.account.accountId, fileId: 7 });
+    await finalizePendingFile({
+      accountId: current.account.accountId,
+      fileId: 7,
+      filePath,
+      fileName: "photo.jpg",
+    });
+
+    expect(detectMime).toHaveBeenCalledWith({ filePath });
+    expect(saveMediaBuffer).toHaveBeenCalledWith(
+      expect.anything(),
+      "image/jpeg",
+      "inbound",
+      expect.any(Number),
+      "photo.jpg",
+      filePath
+    );
+    expect(capturedCtx?.MediaPath).toBe("/store/media/inbound/photo---uuid.jpg");
+    expect(capturedCtx?.MediaPaths).toEqual(["/store/media/inbound/photo---uuid.jpg"]);
+    expect(capturedCtx?.MediaType).toBe("image/jpeg");
   });
 });
 

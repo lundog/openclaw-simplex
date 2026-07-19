@@ -106,6 +106,22 @@ describe("simplex outbound presentation support", () => {
     });
   });
 
+  it("splits long outbound text so SimpleX does not drop it", () => {
+    const outbound = buildSimplexOutbound();
+    const limit = outbound.textChunkLimit;
+    expect(limit).toBeGreaterThan(0);
+    expect(typeof outbound.chunker).toBe("function");
+
+    const long = `${"word ".repeat(4000)}\n\n${"more ".repeat(4000)}`;
+    const chunks = outbound.chunker?.(long, limit as number) ?? [long];
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(limit as number);
+    }
+    expect(chunks.join("")).toContain("word");
+    expect(chunks.join("")).toContain("more");
+  });
+
   it("normalizes routed direct targets before sending text", async () => {
     const outbound = buildSimplexOutbound();
 

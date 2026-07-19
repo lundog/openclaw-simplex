@@ -1,6 +1,11 @@
 import { renderQrTerminal } from "openclaw/plugin-sdk/media-runtime";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import { LEGACY_SIMPLEX_PLUGIN_ID, SIMPLEX_PLUGIN_ID } from "../constants.js";
+import {
+  DEFAULT_SIMPLEX_FILES_FOLDER,
+  DEFAULT_SIMPLEX_TEMP_FOLDER,
+  LEGACY_SIMPLEX_PLUGIN_ID,
+  SIMPLEX_PLUGIN_ID,
+} from "../constants.js";
 import {
   connectSimplexLink,
   planSimplexConnectionLink,
@@ -550,8 +555,8 @@ export function registerSimplexCliMetadata(api: OpenClawPluginApi): void {
         .option("--port <port>", "simplex-chat WebSocket port", "5225")
         .option("--simplex-chat-path <path>", "Path to simplex-chat", "simplex-chat")
         .option("--device-name <name>", "SimpleX device name", "OpenClaw SimpleX")
-        .option("--files-folder <path>", "SimpleX files folder", "~/.simplex/files")
-        .option("--temp-folder <path>", "SimpleX temp folder", "~/.simplex/tmp")
+        .option("--files-folder <path>", "SimpleX files folder", DEFAULT_SIMPLEX_FILES_FOLDER)
+        .option("--temp-folder <path>", "SimpleX temp folder", DEFAULT_SIMPLEX_TEMP_FOLDER)
         .option("--dry-run", "Print the plan without writing files", false)
         .action(async (opts: RuntimeServiceCliOptions) => {
           await runRuntimeServiceInstallCli(opts);

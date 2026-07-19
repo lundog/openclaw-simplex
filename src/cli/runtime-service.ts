@@ -4,9 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
+import { DEFAULT_SIMPLEX_FILES_FOLDER, DEFAULT_SIMPLEX_TEMP_FOLDER } from "../constants.js";
 import { expandHome } from "../fs-paths.js";
 
-type RuntimeServiceProvider = "auto" | "systemd" | "launchd" | "sysvinit";
+export type RuntimeServiceProvider = "auto" | "systemd" | "launchd" | "sysvinit";
 
 export type RuntimeServiceOptions = {
   provider?: RuntimeServiceProvider;
@@ -107,7 +108,7 @@ async function detectProvider(
   );
 }
 
-function resolveRuntimeService(
+export function resolveRuntimeService(
   provider: Exclude<RuntimeServiceProvider, "auto">,
   opts: RuntimeServiceOptions
 ): ResolvedRuntimeService {
@@ -115,8 +116,8 @@ function resolveRuntimeService(
   const port = readPort(opts.port);
   const simplexChatPath = expandHome(opts.simplexChatPath?.trim() || "simplex-chat");
   const deviceName = opts.deviceName?.trim() || "OpenClaw SimpleX";
-  const filesFolder = expandHome(opts.filesFolder?.trim() || "~/.simplex/files");
-  const tempFolder = expandHome(opts.tempFolder?.trim() || "~/.simplex/tmp");
+  const filesFolder = expandHome(opts.filesFolder?.trim() || DEFAULT_SIMPLEX_FILES_FOLDER);
+  const tempFolder = expandHome(opts.tempFolder?.trim() || DEFAULT_SIMPLEX_TEMP_FOLDER);
 
   if (provider === "systemd") {
     const servicePath = path.join(home, ".config/systemd/user/simplex-chat.service");
@@ -145,6 +146,7 @@ Description=SimpleX Chat WebSocket Runtime
 After=network-online.target
 
 [Service]
+ExecStartPre=/bin/mkdir -p ${shellQuote(filesFolder)} ${shellQuote(tempFolder)}
 ExecStart=${execStart}
 Restart=on-failure
 RestartSec=5
@@ -197,6 +199,8 @@ PIDFILE=/var/run/simplex-chat-openclaw.pid
 
 case "$1" in
   start)
+    mkdir -p ${shellQuote(filesFolder)} ${shellQuote(tempFolder)}
+    chown "$RUN_AS_USER" ${shellQuote(filesFolder)} ${shellQuote(tempFolder)} 2>/dev/null || true
     start-stop-daemon --start --background --make-pidfile --pidfile "$PIDFILE" --chuid "$RUN_AS_USER" --startas /bin/sh -- -c 'exec "$@"' simplex-chat-openclaw ${daemonArgs}
     ;;
   stop)
@@ -221,7 +225,7 @@ exit $?
   }
 
   const servicePath = path.join(home, "Library/LaunchAgents/ai.openclaw.simplex-chat.plist");
-  const args = [
+  const runtimeArgs = [
     simplexChatPath,
     "-p",
     String(port),
@@ -232,6 +236,10 @@ exit $?
     "--temp-folder",
     tempFolder,
   ];
+  // launchd has no ExecStartPre, so mkdir in a wrapping shell, then exec so
+  // launchd tracks the runtime process and not the shell.
+  const launchShellCommand = `mkdir -p ${shellQuote(filesFolder)} ${shellQuote(tempFolder)} && exec ${runtimeArgs.map(shellQuote).join(" ")}`;
+  const args = ["/bin/sh", "-c", launchShellCommand];
   const argXml = args.map((arg) => `          <string>${xmlEscape(arg)}</string>`).join("\n");
   return {
     provider,

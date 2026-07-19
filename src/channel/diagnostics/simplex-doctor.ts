@@ -1,9 +1,34 @@
+import { constants as fsConstants } from "node:fs";
+import { access, stat } from "node:fs/promises";
 import type { ChannelDoctorAdapter } from "openclaw/plugin-sdk/channel-contract";
 import type { SimplexAccountConfig, SimplexChannelConfig } from "../../config/config-schema.js";
 import { LEGACY_SIMPLEX_CHANNEL_ID, SIMPLEX_CHANNEL_ID } from "../../constants.js";
+import { resolveSimplexFilesFolder } from "../events/simplex-inbound-files.js";
 
 function isEmptyArray(value: unknown): boolean {
   return Array.isArray(value) && value.length === 0;
+}
+
+// A missing/unwritable files folder makes file transfers fail silently
+// (simplex-chat with -p logs nothing), so surface it as a diagnostic.
+async function collectFilesFolderWarning(
+  channel: SimplexChannelConfig
+): Promise<string | undefined> {
+  const configured = channel.connection?.filesFolder?.trim();
+  const folder = resolveSimplexFilesFolder(configured);
+  const label = configured
+    ? `connection.filesFolder (${folder})`
+    : `the default SimpleX files folder (${folder})`;
+  try {
+    const info = await stat(folder);
+    if (!info.isDirectory()) {
+      return `- SimpleX ${label} exists but is not a directory. Received files cannot be read until this is a writable directory.`;
+    }
+    await access(folder, fsConstants.W_OK);
+  } catch {
+    return `- SimpleX ${label} is missing or not writable. Received files will be dropped until it exists and the runtime is started with a matching --files-folder.`;
+  }
+  return undefined;
 }
 
 function readChannelConfig(cfg: { channels?: Record<string, unknown> }): SimplexChannelConfig {
@@ -37,7 +62,7 @@ export const simplexDoctor: ChannelDoctorAdapter = {
   groupModel: "sender",
   dmAllowFromMode: "topOrNested",
   warnOnEmptyGroupSenderAllowlist: true,
-  collectPreviewWarnings: ({ cfg, doctorFixCommand }) => {
+  collectPreviewWarnings: async ({ cfg, doctorFixCommand }) => {
     const warnings: string[] = [];
     const legacy = cfg.channels?.[LEGACY_SIMPLEX_CHANNEL_ID];
     if (legacy) {
@@ -64,6 +89,11 @@ export const simplexDoctor: ChannelDoctorAdapter = {
         continue;
       }
       warnings.push(...collectAccountWarnings(channel, accountId, account));
+    }
+
+    const filesFolderWarning = await collectFilesFolderWarning(channel);
+    if (filesFolderWarning) {
+      warnings.push(filesFolderWarning);
     }
 
     return warnings;

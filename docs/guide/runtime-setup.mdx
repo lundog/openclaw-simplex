@@ -30,6 +30,10 @@ openclaw simplex runtime service install \
 
 Use <code>--dry-run</code> with <code>install</code> to print the plan without writing files.
 
+<Note>
+  The runtime must run with both <code>--files-folder</code> and <code>--temp-folder</code>, and those directories must exist before it starts, or sending and receiving files fails. This failure is silent: <code>simplex-chat</code> started with <code>-p</code> does not log it. The service the CLI helper generates creates both folders on start, so this is handled for you. If you hand-write a service file or run <code>simplex-chat</code> directly, create them first with <code>mkdir -p ~/.simplex/files ~/.simplex/tmp</code>. <code>openclaw simplex runtime doctor</code> warns when the files folder is missing or not writable.
+</Note>
+
 The repo also ships deployment templates under <code>examples/</code>:
 
 - <code>examples/docker-compose.sidecar.yml</code>: OpenClaw plus a private <code>simplex-chat</code> sidecar network.
