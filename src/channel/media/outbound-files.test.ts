@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
@@ -14,6 +14,21 @@ import {
 
 // Keep in sync with STAGED_FILE_TTL_MS in outbound-files.ts.
 const STAGED_FILE_TTL_MS = 5 * 60_000;
+
+// The reaper's unlink is fire-and-forget, so advancing timers schedules the
+// delete but does not await the filesystem I/O. Poll (real fs yields to the
+// event loop) so the assertion is deterministic under parallel test load.
+async function waitForMissing(filePath: string): Promise<void> {
+  for (let i = 0; i < 1000; i += 1) {
+    try {
+      await access(filePath);
+    } catch {
+      return;
+    }
+    await Promise.resolve();
+  }
+  throw new Error(`file was not reaped: ${filePath}`);
+}
 
 function cfg(
   connection: Record<string, unknown>,
@@ -120,7 +135,7 @@ describe("staging + reaping", () => {
 
     // gone once the TTL elapses
     await vi.advanceTimersByTimeAsync(1);
-    await expect(readFile(staged)).rejects.toThrow();
+    await waitForMissing(staged);
   });
 
   it("with a client dir: sends the translated path, reaps the real on-disk file", async () => {
@@ -140,7 +155,7 @@ describe("staging + reaping", () => {
 
     // the reaper is keyed by the sent path but deletes the on-disk file
     await vi.advanceTimersByTimeAsync(STAGED_FILE_TTL_MS + 1);
-    await expect(readFile(onDisk)).rejects.toThrow();
+    await waitForMissing(onDisk);
   });
 
   it("creates the outbound dir if it does not exist yet", async () => {
@@ -173,7 +188,7 @@ describe("staging + reaping", () => {
 
     await vi.advanceTimersByTimeAsync(STAGED_FILE_TTL_MS + 1);
 
-    await expect(readFile(staged)).rejects.toThrow();
+    await waitForMissing(staged);
     expect(await readFile(preexisting, "utf8")).toBe("keep");
   });
 });

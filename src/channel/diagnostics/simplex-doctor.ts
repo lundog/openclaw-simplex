@@ -9,24 +9,46 @@ function isEmptyArray(value: unknown): boolean {
   return Array.isArray(value) && value.length === 0;
 }
 
+type FilesFolderTarget = { folder: string; label: string };
+
+function collectFilesFolderTargets(channel: SimplexChannelConfig): FilesFolderTarget[] {
+  const targets: FilesFolderTarget[] = [];
+  const seen = new Set<string>();
+  const add = (configured: string | undefined, scope: string) => {
+    const folder = resolveSimplexFilesFolder(configured);
+    if (seen.has(folder)) {
+      return;
+    }
+    seen.add(folder);
+    const source = configured ? "connection.filesFolder" : "the default SimpleX files folder";
+    targets.push({ folder, label: `${source} (${folder})${scope}` });
+  };
+
+  add(channel.connection?.filesFolder?.trim(), "");
+  for (const [accountId, account] of Object.entries(channel.accounts ?? {})) {
+    const override = account?.connection?.filesFolder?.trim();
+    if (override) {
+      add(override, ` for account "${accountId}"`);
+    }
+  }
+  return targets;
+}
+
 // A missing/unwritable files folder makes file transfers fail silently
 // (simplex-chat with -p logs nothing), so surface it as a diagnostic.
-async function collectFilesFolderWarning(
-  channel: SimplexChannelConfig
-): Promise<string | undefined> {
-  const configured = channel.connection?.filesFolder?.trim();
-  const folder = resolveSimplexFilesFolder(configured);
-  const label = configured
-    ? `connection.filesFolder (${folder})`
-    : `the default SimpleX files folder (${folder})`;
+async function collectFilesFolderWarning(target: FilesFolderTarget): Promise<string | undefined> {
   try {
-    const info = await stat(folder);
+    const info = await stat(target.folder);
     if (!info.isDirectory()) {
-      return `- SimpleX ${label} exists but is not a directory. Received files cannot be read until this is a writable directory.`;
+      return `- SimpleX ${target.label} exists but is not a directory. Received files cannot be read until it is a writable directory.`;
     }
-    await access(folder, fsConstants.W_OK);
   } catch {
-    return `- SimpleX ${label} is missing or not writable. Received files will be dropped until it exists and the runtime is started with a matching --files-folder.`;
+    return `- SimpleX ${target.label} does not exist. Received files will be dropped until it is created (the runtime's --files-folder).`;
+  }
+  try {
+    await access(target.folder, fsConstants.W_OK);
+  } catch {
+    return `- SimpleX ${target.label} is not writable. Received files will be dropped until its permissions are fixed.`;
   }
   return undefined;
 }
@@ -91,9 +113,11 @@ export const simplexDoctor: ChannelDoctorAdapter = {
       warnings.push(...collectAccountWarnings(channel, accountId, account));
     }
 
-    const filesFolderWarning = await collectFilesFolderWarning(channel);
-    if (filesFolderWarning) {
-      warnings.push(filesFolderWarning);
+    for (const target of collectFilesFolderTargets(channel)) {
+      const warning = await collectFilesFolderWarning(target);
+      if (warning) {
+        warnings.push(warning);
+      }
     }
 
     return warnings;
