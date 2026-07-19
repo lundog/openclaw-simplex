@@ -2,10 +2,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { ChannelAccountSnapshot } from "openclaw/plugin-sdk/channel-contract";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
+import { formatInboundMediaUnavailableText } from "openclaw/plugin-sdk/channel-inbound";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { DEFAULT_SIMPLEX_FILES_FOLDER } from "../../constants.js";
 import { expandHome } from "../../fs-paths.js";
 import type { SimplexClient } from "../../simplex/runtime/client.js";
+import { markSimplexEventSeen, type SimplexEventKey } from "../../simplex/state/event-dedupe.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import { resolveSimplexMediaMaxBytes } from "../media/simplex-media.js";
 import {
@@ -54,6 +56,7 @@ export type PendingInboundFile = {
   client: SimplexClient;
   sendPayload: (payload: SimplexReplyPayload) => Promise<void>;
   statusSink?: (patch: Partial<ChannelAccountSnapshot>) => void;
+  eventKey?: SimplexEventKey | null;
 };
 
 type QueuedPendingInboundFile = {
@@ -136,6 +139,7 @@ export function queuePendingFile(params: {
       pending: current.pending,
       mediaPath: undefined,
       mediaType: undefined,
+      mediaUnavailable: { reason: "transfer-incomplete" },
     }).catch((err) => {
       current.pending.runtime.error?.(
         `[${accountId}] SimpleX pending file timeout: ${String(err)}`
@@ -205,19 +209,48 @@ export async function finalizePendingFile(params: {
       mediaPath = rawPath;
     }
   }
-  await dispatchInbound({ pending, mediaPath, mediaType });
+  // The transfer reported completion but the runtime gave us no usable path,
+  // so the turn would otherwise arrive with a silently missing attachment.
+  await dispatchInbound({
+    pending,
+    mediaPath,
+    mediaType,
+    mediaUnavailable: mediaPath ? undefined : { reason: "transfer-incomplete" },
+  });
 }
 
 export function hasPendingFile(accountId: string, fileId: number): boolean {
   return pendingFiles.has(pendingKey(accountId, fileId));
 }
 
+export type SimplexInboundMediaUnavailable = {
+  reason: "too-large" | "transfer-incomplete";
+  sizeBytes?: number;
+  maxBytes?: number;
+};
+
+function formatMegabytes(bytes: number): string {
+  return `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+function describeMediaUnavailable(unavailable: SimplexInboundMediaUnavailable): string {
+  switch (unavailable.reason) {
+    case "too-large":
+      return unavailable.sizeBytes !== undefined && unavailable.maxBytes !== undefined
+        ? `[SimpleX attachment not delivered: ${formatMegabytes(unavailable.sizeBytes)} exceeds the ${formatMegabytes(unavailable.maxBytes)} limit for this account.]`
+        : "[SimpleX attachment not delivered: it exceeds the configured size limit for this account.]";
+    case "transfer-incomplete":
+      return "[SimpleX attachment not delivered: the file transfer did not complete.]";
+  }
+}
+
 export async function dispatchInbound(params: {
   pending: PendingInboundFile;
   mediaPath?: string;
   mediaType?: string;
+  mediaUnavailable?: SimplexInboundMediaUnavailable;
 }): Promise<void> {
-  const { pending, mediaPath, mediaType } = params;
+  const { pending, mediaPath, mediaType, mediaUnavailable } = params;
   const core = getSimplexRuntime();
   const liveReply = createSimplexLiveReplyController({
     cfg: pending.cfg,
@@ -226,8 +259,19 @@ export async function dispatchInbound(params: {
     replyToId: pending.replyToId,
     logError: (message) => pending.runtime.error?.(`[${pending.account.accountId}] ${message}`),
   });
+  // Only `Body` carries the notice. `RawBody`/`CommandBody` stay the literal
+  // transport text so command parsing is unaffected.
+  const noticeBody =
+    mediaUnavailable && !mediaPath
+      ? formatInboundMediaUnavailableText({
+          body: typeof pending.ctxPayload.Body === "string" ? pending.ctxPayload.Body : "",
+          notice: describeMediaUnavailable(mediaUnavailable),
+        })
+      : undefined;
+
   const ctxPayload = {
     ...pending.ctxPayload,
+    ...(noticeBody === undefined ? {} : { Body: noticeBody }),
     MediaPath: mediaPath,
     MediaPaths: mediaPath ? [mediaPath] : undefined,
     MediaType: mediaType,
@@ -242,6 +286,12 @@ export async function dispatchInbound(params: {
       pending.runtime.error?.(`simplex: failed updating session meta: ${String(err)}`);
     },
   });
+
+  // Dedupe is recorded here rather than before dispatch: once the inbound turn
+  // is durably recorded, OpenClaw owns replaying the agent run, so marking is
+  // safe. Marking any earlier would drop the message if this process died
+  // before the record landed.
+  await markSimplexEventSeen(pending.eventKey ?? null);
 
   pending.statusSink?.({ lastInboundAt: Date.now() });
 

@@ -15,6 +15,9 @@ All notable changes to this project will be documented in this file.
 
 - Fixed SimpleX channel config schema construction against OpenClaw `2026.7.x`, which inlines zod's types into its own bundled declarations. A plugin-owned zod no longer shares declaration identity with the host, so `buildCatchallMultiAccountChannelSchema` and `buildChannelConfigSchema` rejected the account schema and collapsed the inferred config type, breaking account-scoped policy fields in the runtime doctor and account resolution.
 - Fixed protocol id parsing so unsafe integers beyond `Number.MAX_SAFE_INTEGER` are rejected instead of being silently rounded to a different id.
+- Fixed inbound events being marked as seen before dispatch, which permanently dropped a message if the process stopped between the two. Dedupe is now recorded after the inbound turn is durably registered, so an interrupted turn replays instead of disappearing.
+- Fixed oversized inbound attachments being dropped together with their caption. The message is now delivered with an explicit notice that the attachment exceeded the account limit.
+- Fixed inbound attachments that time out or complete without a usable path arriving as an ordinary message with no indication that a file was missing.
 
 ## [1.7.3] - 2026-06-07
 

@@ -5,7 +5,11 @@ import { SIMPLEX_CHANNEL_ID } from "../../constants.js";
 import { formatSimplexChatRef } from "../../simplex/runtime/api.js";
 import { SimplexClient } from "../../simplex/runtime/client.js";
 import { recordSimplexContactRequest } from "../../simplex/state/contact-requests.js";
-import { markSimplexEventSeen } from "../../simplex/state/event-dedupe.js";
+import {
+  hasSimplexEventBeenSeen,
+  markSimplexEventSeen,
+  type SimplexEventKey,
+} from "../../simplex/state/event-dedupe.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import type { SimplexChatItem } from "../../types/events.js";
 import type { SimplexChatEvent } from "../../types/simplex.js";
@@ -240,14 +244,16 @@ async function handleSimplexEvent(params: {
       id: context.chatType === "group" ? context.chatId : dmPeerId,
     });
 
-    if (
-      currentMessageId !== undefined &&
-      !(await markSimplexEventSeen({
-        accountId: account.accountId,
-        chatId: context.chatId,
-        messageId: currentMessageId,
-      }))
-    ) {
+    const eventKey: SimplexEventKey | null =
+      currentMessageId === undefined
+        ? null
+        : {
+            accountId: account.accountId,
+            chatId: context.chatId,
+            messageId: currentMessageId,
+          };
+
+    if (await hasSimplexEventBeenSeen(eventKey)) {
       continue;
     }
 
@@ -286,6 +292,7 @@ async function handleSimplexEvent(params: {
       },
     });
     if (!access.allowed) {
+      await markSimplexEventSeen(eventKey);
       continue;
     }
 
@@ -334,6 +341,7 @@ async function handleSimplexEvent(params: {
         });
       },
       statusSink,
+      eventKey,
     };
 
     if (typeof fileId === "number") {
@@ -341,6 +349,15 @@ async function handleSimplexEvent(params: {
         runtime.error?.(
           `[${account.accountId}] SimpleX file ${fileId} exceeds limit (${fileSize} > ${maxBytes})`
         );
+        // The attachment is refused, but the turn still carries the sender's
+        // caption. Dispatch it with an unavailable notice instead of dropping
+        // the message, so the agent sees that something was sent.
+        await dispatchInbound({
+          pending,
+          mediaPath: undefined,
+          mediaType: undefined,
+          mediaUnavailable: { reason: "too-large", sizeBytes: fileSize, maxBytes },
+        });
         continue;
       }
       if (isFileAutoAcceptEnabled(account)) {
