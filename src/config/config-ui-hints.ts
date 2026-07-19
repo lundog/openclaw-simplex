@@ -220,6 +220,26 @@ const accountScopedUiHints = withAccountScope({
     help: "Allowed SimpleX senders for groups when groupPolicy is allowlist.",
     tags: ["security"],
   },
+  draftChunk: {
+    label: "Live Draft Chunking",
+    help: "Optional OpenClaw-standard live-draft chunking. When set, it overrides streaming.minChars and streaming.wordBoundary.",
+    advanced: true,
+  },
+  "draftChunk.minChars": {
+    label: "Draft Min Characters",
+    help: "Minimum characters before the live draft updates.",
+    advanced: true,
+  },
+  "draftChunk.maxChars": {
+    label: "Draft Max Characters",
+    help: "Maximum characters shown in the live draft; the final reply is never truncated.",
+    advanced: true,
+  },
+  "draftChunk.breakPreference": {
+    label: "Draft Break Preference",
+    help: "Where the live draft trims back to: paragraph, newline, or sentence.",
+    advanced: true,
+  },
   mentionPatterns: {
     label: "Mention Patterns",
     help: "Restrict where agent name patterns count as a mention. Use allowIn/denyIn with SimpleX group ids.",

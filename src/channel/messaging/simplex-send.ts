@@ -1,5 +1,7 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import type { MessageReceipt } from "openclaw/plugin-sdk/channel-outbound";
+import { resolveChannelStreamingPreviewChunk } from "openclaw/plugin-sdk/channel-streaming";
+import { SIMPLEX_TEXT_CHUNK_LIMIT } from "../../constants.js";
 import { parseSimplexNumericId, resolveSimplexChatItemId } from "../../simplex/runtime/api.js";
 import { withSimplexClient } from "../../simplex/runtime/transport.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
@@ -107,18 +109,67 @@ export type SimplexLiveReplyPayload = {
   replyToId?: string | number | null;
 };
 
-export function resolveSimplexLiveStreamingConfig(account: ResolvedSimplexAccount): {
+// Mirrors OpenClaw's draft-stream defaults, which are not exported to plugins.
+const DEFAULT_DRAFT_STREAM_MIN = 200;
+const DEFAULT_DRAFT_STREAM_MAX = 800;
+
+export type SimplexLiveStreamingConfig = {
   enabled: boolean;
   throttleMs: number;
   minChars: number;
+  maxChars?: number;
+  breakPreference?: "paragraph" | "newline" | "sentence";
   wordBoundary: boolean;
-} {
+};
+
+/**
+ * Live-draft chunking is dual-read. When OpenClaw's canonical chunk config is
+ * present, chunk sizes and break points come from it. Otherwise the original
+ * `streaming.*` behavior and defaults are kept, so existing installs are
+ * unaffected.
+ *
+ * `throttleMs` and `nativeTransport` stay plugin-owned: the host chunking model
+ * has no equivalent for either.
+ */
+export function resolveSimplexLiveStreamingConfig(
+  account: ResolvedSimplexAccount
+): SimplexLiveStreamingConfig {
   const streaming = account.config.streaming;
+  const enabled = streaming?.nativeTransport === true;
+  const throttleMs = streaming?.throttleMs ?? 2000;
+  const wordBoundary = streaming?.wordBoundary ?? true;
+
+  // `account.config` is the merged channel+account view, so it is the single
+  // source of truth here. The SDK reader is used for the *shape* (it accepts
+  // both `streaming.preview.chunk` and `draftChunk`), which is the part that
+  // tracks host config conventions.
+  const chunk = resolveChannelStreamingPreviewChunk(account.config);
+  if (chunk) {
+    const maxChars = Math.min(
+      Math.max(1, Math.floor(chunk.maxChars ?? DEFAULT_DRAFT_STREAM_MAX)),
+      SIMPLEX_TEXT_CHUNK_LIMIT
+    );
+    return {
+      enabled,
+      throttleMs,
+      minChars: Math.min(
+        Math.max(1, Math.floor(chunk.minChars ?? DEFAULT_DRAFT_STREAM_MIN)),
+        maxChars
+      ),
+      maxChars,
+      breakPreference:
+        chunk.breakPreference === "newline" || chunk.breakPreference === "sentence"
+          ? chunk.breakPreference
+          : "paragraph",
+      wordBoundary,
+    };
+  }
+
   return {
-    enabled: streaming?.nativeTransport === true,
-    throttleMs: streaming?.throttleMs ?? 2000,
+    enabled,
+    throttleMs,
     minChars: streaming?.minChars ?? 24,
-    wordBoundary: streaming?.wordBoundary ?? true,
+    wordBoundary,
   };
 }
 
@@ -134,6 +185,32 @@ function trimToWordBoundary(text: string): string {
   return trimmed.slice(0, lastSpace).trimEnd();
 }
 
+const BREAK_MARKERS: Record<
+  NonNullable<SimplexLiveStreamingConfig["breakPreference"]>,
+  string[]
+> = {
+  paragraph: ["\n\n"],
+  newline: ["\n"],
+  sentence: [". ", "! ", "? ", ".\n", "!\n", "?\n"],
+};
+
+/**
+ * Trims a partial draft back to the last configured break point so the live
+ * message does not flicker mid-sentence. Falls back to word-boundary trimming
+ * when no break point has been reached yet.
+ */
+function trimToBreakPreference(
+  text: string,
+  breakPreference: NonNullable<SimplexLiveStreamingConfig["breakPreference"]>
+): string {
+  const trimmed = text.trimEnd();
+  let cut = -1;
+  for (const marker of BREAK_MARKERS[breakPreference]) {
+    cut = Math.max(cut, trimmed.lastIndexOf(marker) + marker.length);
+  }
+  return cut > 0 ? trimmed.slice(0, cut).trimEnd() : trimToWordBoundary(trimmed);
+}
+
 function payloadHasMedia(payload: SimplexLiveReplyPayload): boolean {
   return Boolean(
     payload.mediaUrl ||
@@ -141,8 +218,28 @@ function payloadHasMedia(payload: SimplexLiveReplyPayload): boolean {
   );
 }
 
-function renderLiveText(text: string, params: { final?: boolean; wordBoundary: boolean }): string {
-  return params.final || !params.wordBoundary ? text.trimEnd() : trimToWordBoundary(text);
+function renderLiveText(
+  text: string,
+  params: {
+    final?: boolean;
+    wordBoundary: boolean;
+    maxChars?: number;
+    breakPreference?: SimplexLiveStreamingConfig["breakPreference"];
+  }
+): string {
+  // `maxChars` caps the live draft only. A final reply is never truncated here;
+  // outbound chunking owns splitting it.
+  const capped =
+    !params.final && params.maxChars !== undefined && text.length > params.maxChars
+      ? text.slice(0, params.maxChars)
+      : text;
+  if (params.final) {
+    return capped.trimEnd();
+  }
+  if (params.breakPreference) {
+    return trimToBreakPreference(capped, params.breakPreference);
+  }
+  return params.wordBoundary ? trimToWordBoundary(capped) : capped.trimEnd();
 }
 
 export function createSimplexLiveReplyController(params: {
@@ -216,6 +313,8 @@ export function createSimplexLiveReplyController(params: {
     const rendered = renderLiveText(text, {
       final: options.final,
       wordBoundary: live.wordBoundary,
+      maxChars: live.maxChars,
+      breakPreference: live.breakPreference,
     });
     if (!rendered) {
       return true;

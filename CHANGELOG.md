@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Zod schemas are now built with OpenClaw's own zod instance from `openclaw/plugin-sdk/zod` instead of a plugin-owned `zod` dependency, and `zod` was dropped from runtime dependencies.
 - Replaced the duplicated hand-rolled positive-integer parsers in the gateway methods and plugin CLI with a shared `readRequiredPositiveInteger` helper backed by the SDK's `readPositiveIntegerParam`.
 - Added an optional `mentionPatterns` account policy (`mode`/`allowIn`/`denyIn`) so agent name patterns can be scoped to specific SimpleX groups, and passed SimpleX provider/conversation context into OpenClaw's mention-regex builder, which previously ignored per-conversation mention policy.
+- Added optional `draftChunk` live-draft chunking (`minChars`/`maxChars`/`breakPreference`) using OpenClaw's canonical config shape. Live drafts can now trim to paragraph, newline, or sentence boundaries and cap their length; the final reply is never truncated. This is dual-read and additive: when `draftChunk` is unset, the existing `streaming.minChars`/`streaming.wordBoundary` behavior and defaults are unchanged. `streaming.throttleMs` and `streaming.nativeTransport` remain plugin-owned because the host chunking model has no equivalent.
 
 ### Fixed
 
