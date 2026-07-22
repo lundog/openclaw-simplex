@@ -124,6 +124,33 @@ describe("resolveSimplexInboundAccess", () => {
     });
   });
 
+  it("scopes mention pattern matching to the SimpleX group and account policy", async () => {
+    const core = runtimeCore({ mentioned: true });
+    const mentionPatterns = { mode: "deny" as const, denyIn: ["7"] };
+
+    await resolveSimplexInboundAccess({
+      account: account({
+        groupPolicy: "allowlist",
+        groupAllowFrom: ["group:7"],
+        mentionPatterns,
+      }),
+      cfg: {},
+      runtime,
+      core,
+      context: groupContext(),
+      rawBody: "@agent status",
+      normalizedSenderId: "42",
+      routeAgentId: "agent",
+      replyToPairingRequest: vi.fn(),
+    });
+
+    expect(core.channel.mentions.buildMentionRegexes).toHaveBeenCalledWith({}, "agent", {
+      provider: "openclaw-simplex",
+      conversationId: "7",
+      providerPolicy: mentionPatterns,
+    });
+  });
+
   it("logs group id and sender details for allowlist drops", async () => {
     const result = await resolveSimplexInboundAccess({
       account: account({ groupPolicy: "allowlist", groupAllowFrom: ["group:99"] }),

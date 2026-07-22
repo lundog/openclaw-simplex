@@ -6,6 +6,7 @@ import {
   LEGACY_SIMPLEX_PLUGIN_ID,
   SIMPLEX_PLUGIN_ID,
 } from "../constants.js";
+import { readRequiredPositiveInteger } from "../params.js";
 import {
   connectSimplexLink,
   planSimplexConnectionLink,
@@ -105,15 +106,6 @@ async function printTerminalQr(value: string): Promise<void> {
 
 function printJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
-}
-
-function readPositiveInteger(value: string | undefined, label: string): number {
-  const token = value?.trim() ?? "";
-  const parsed = /^[0-9]+$/.test(token) ? Number(token) : Number.NaN;
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${label} must be a positive integer`);
-  }
-  return parsed;
 }
 
 function readRequiredString(value: string | undefined, label: string): string {
@@ -238,7 +230,7 @@ async function runVerificationShowCli(
     await showSimplexContactVerification({
       cfg: api.config,
       accountId: readOptionalAccountId(opts.accountId),
-      contactId: readPositiveInteger(opts.contactId, "contactId"),
+      contactId: readRequiredPositiveInteger(opts, "contactId"),
     })
   );
 }
@@ -251,7 +243,7 @@ async function runVerificationCheckCli(
     await checkSimplexContactVerification({
       cfg: api.config,
       accountId: readOptionalAccountId(opts.accountId),
-      contactId: readPositiveInteger(opts.contactId, "contactId"),
+      contactId: readRequiredPositiveInteger(opts, "contactId"),
       code: opts.code,
     })
   );
@@ -274,7 +266,7 @@ async function runRequestsAcceptCli(
     await acceptSimplexContactRequest({
       cfg: api.config,
       accountId: readOptionalAccountId(opts.accountId),
-      contactRequestId: readPositiveInteger(opts.contactRequestId, "contactRequestId"),
+      contactRequestId: readRequiredPositiveInteger(opts, "contactRequestId"),
     })
   );
 }
@@ -287,7 +279,7 @@ async function runRequestsRejectCli(
     await rejectSimplexContactRequest({
       cfg: api.config,
       accountId: readOptionalAccountId(opts.accountId),
-      contactRequestId: readPositiveInteger(opts.contactRequestId, "contactRequestId"),
+      contactRequestId: readRequiredPositiveInteger(opts, "contactRequestId"),
     })
   );
 }
@@ -314,7 +306,7 @@ async function runGroupLinkCreateCli(
   const result = await createSimplexGroupLink({
     cfg: api.config,
     accountId: readOptionalAccountId(opts.accountId),
-    groupId: readPositiveInteger(opts.groupId, "groupId"),
+    groupId: readRequiredPositiveInteger(opts, "groupId"),
     role: opts.role,
   });
   printJson(result);
@@ -330,7 +322,7 @@ async function runGroupLinkListCli(
   const result = await listSimplexGroupLink({
     cfg: api.config,
     accountId: readOptionalAccountId(opts.accountId),
-    groupId: readPositiveInteger(opts.groupId, "groupId"),
+    groupId: readRequiredPositiveInteger(opts, "groupId"),
   });
   printJson(result);
   if (opts.qr && result.link) {
@@ -346,7 +338,7 @@ async function runGroupLinkRevokeCli(
     await revokeSimplexGroupLink({
       cfg: api.config,
       accountId: readOptionalAccountId(opts.accountId),
-      groupId: readPositiveInteger(opts.groupId, "groupId"),
+      groupId: readRequiredPositiveInteger(opts, "groupId"),
     })
   );
 }
@@ -359,8 +351,8 @@ async function runGroupMemberBlockCli(
     await blockSimplexGroupMember({
       cfg: api.config,
       accountId: readOptionalAccountId(opts.accountId),
-      groupId: readPositiveInteger(opts.groupId, "groupId"),
-      memberId: readPositiveInteger(opts.memberId, "memberId"),
+      groupId: readRequiredPositiveInteger(opts, "groupId"),
+      memberId: readRequiredPositiveInteger(opts, "memberId"),
     })
   );
 }
@@ -373,8 +365,8 @@ async function runGroupMemberDeleteMessagesCli(
     await deleteSimplexGroupMemberMessages({
       cfg: api.config,
       accountId: readOptionalAccountId(opts.accountId),
-      groupId: readPositiveInteger(opts.groupId, "groupId"),
-      memberId: readPositiveInteger(opts.memberId, "memberId"),
+      groupId: readRequiredPositiveInteger(opts, "groupId"),
+      memberId: readRequiredPositiveInteger(opts, "memberId"),
     })
   );
 }
@@ -384,7 +376,7 @@ async function runFileReceiveCli(api: OpenClawPluginApi, opts: FileCliOptions): 
     await receiveSimplexFile({
       cfg: api.config,
       accountId: readOptionalAccountId(opts.accountId),
-      fileId: readPositiveInteger(opts.fileId, "fileId"),
+      fileId: readRequiredPositiveInteger(opts, "fileId"),
     })
   );
 }
@@ -394,7 +386,7 @@ async function runFileCancelCli(api: OpenClawPluginApi, opts: FileCliOptions): P
     await cancelSimplexFile({
       cfg: api.config,
       accountId: readOptionalAccountId(opts.accountId),
-      fileId: readPositiveInteger(opts.fileId, "fileId"),
+      fileId: readRequiredPositiveInteger(opts, "fileId"),
     })
   );
 }

@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-07-19
+
+### Changed
+
+- Raised the minimum supported OpenClaw version to `2026.7.1` and aligned package compatibility metadata with the current plugin SDK surfaces.
+- Version floors now carry an explicit `-0` prerelease suffix (`>=2026.7.1-0`). npm's `latest` tag resolves to `2026.7.1-2`, which sorts below `2026.7.1` under semver, so a plain floor would have rejected the version a default `npm install openclaw` produces.
+- Zod schemas are now built with OpenClaw's own zod instance from `openclaw/plugin-sdk/zod` instead of a plugin-owned `zod` dependency, and `zod` was dropped from runtime dependencies.
+- Replaced the duplicated hand-rolled positive-integer parsers in the gateway methods and plugin CLI with a shared `readRequiredPositiveInteger` helper backed by the SDK's `readPositiveIntegerParam`.
+- Added an optional `mentionPatterns` account policy (`mode`/`allowIn`/`denyIn`) so agent name patterns can be scoped to specific SimpleX groups, and passed SimpleX provider/conversation context into OpenClaw's mention-regex builder, which previously ignored per-conversation mention policy.
+- Added optional `draftChunk` live-draft chunking (`minChars`/`maxChars`/`breakPreference`) using OpenClaw's canonical config shape. Live drafts can now trim to paragraph, newline, or sentence boundaries and cap their length; the final reply is never truncated. This is dual-read and additive: when `draftChunk` is unset, the existing `streaming.minChars`/`streaming.wordBoundary` behavior and defaults are unchanged. `streaming.throttleMs` and `streaming.nativeTransport` remain plugin-owned because the host chunking model has no equivalent.
+- Poll duration is now validated as a positive integer through the shared SDK schema helper instead of an unbounded integer.
+
+### Fixed
+
+- Fixed SimpleX channel config schema construction against OpenClaw `2026.7.x`, which inlines zod's types into its own bundled declarations. A plugin-owned zod no longer shares declaration identity with the host, so `buildCatchallMultiAccountChannelSchema` and `buildChannelConfigSchema` rejected the account schema and collapsed the inferred config type, breaking account-scoped policy fields in the runtime doctor and account resolution.
+- Fixed protocol id parsing so unsafe integers beyond `Number.MAX_SAFE_INTEGER` are rejected instead of being silently rounded to a different id.
+- Fixed inbound events being marked as seen before dispatch, which permanently dropped a message if the process stopped between the two. Dedupe is now recorded after the inbound turn is durably registered, so an interrupted turn replays instead of disappearing.
+- Fixed oversized inbound attachments being dropped together with their caption. The message is now delivered with an explicit notice that the attachment exceeded the account limit.
+- Fixed inbound attachments that time out or complete without a usable path arriving as an ordinary message with no indication that a file was missing.
+
 ## [1.7.3] - 2026-06-07
 
 ### Added

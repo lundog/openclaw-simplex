@@ -266,3 +266,71 @@ describe("simplex inbound live replies", () => {
     expect(secondCancel).toHaveBeenCalledWith(42);
   });
 });
+
+describe("inbound media unavailable notices", () => {
+  function installCapturingRuntime(): { recorded: Array<Record<string, unknown>> } {
+    const recorded: Array<Record<string, unknown>> = [];
+    const runtime = {
+      channel: {
+        session: {
+          recordInboundSession: vi.fn(async (params: { ctx: Record<string, unknown> }) => {
+            recorded.push(params.ctx);
+          }),
+        },
+        reply: {
+          dispatchReplyWithBufferedBlockDispatcher: vi.fn(async () => undefined),
+        },
+      },
+    };
+    setSimplexRuntime(runtime as object as Partial<PluginRuntime> as PluginRuntime);
+    return { recorded };
+  }
+
+  it("appends a size-limit notice to the caption when the attachment is refused", async () => {
+    const { recorded } = installCapturingRuntime();
+    const target = pending();
+    target.ctxPayload = { ...target.ctxPayload, Body: "look at this", RawBody: "look at this" };
+
+    await dispatchInbound({
+      pending: target,
+      mediaUnavailable: { reason: "too-large", sizeBytes: 30_000_000, maxBytes: 10_000_000 },
+    });
+
+    expect(recorded[0]?.Body).toBe(
+      "look at this\n\n[SimpleX attachment not delivered: 30.0 MB exceeds the 10.0 MB limit for this account.]"
+    );
+    // Command parsing must keep seeing the literal transport text.
+    expect(recorded[0]?.RawBody).toBe("look at this");
+  });
+
+  it("uses the notice alone when the message carried no caption", async () => {
+    const { recorded } = installCapturingRuntime();
+    const target = pending();
+    target.ctxPayload = { ...target.ctxPayload, Body: "" };
+
+    await dispatchInbound({
+      pending: target,
+      mediaUnavailable: { reason: "transfer-incomplete" },
+    });
+
+    expect(recorded[0]?.Body).toBe(
+      "[SimpleX attachment not delivered: the file transfer did not complete.]"
+    );
+  });
+
+  it("leaves the body untouched when media was delivered", async () => {
+    const { recorded } = installCapturingRuntime();
+    const target = pending();
+    target.ctxPayload = { ...target.ctxPayload, Body: "look at this" };
+
+    await dispatchInbound({
+      pending: target,
+      mediaPath: "/media/inbound/photo.jpg",
+      mediaType: "image/jpeg",
+      mediaUnavailable: { reason: "transfer-incomplete" },
+    });
+
+    expect(recorded[0]?.Body).toBe("look at this");
+    expect(recorded[0]?.MediaPath).toBe("/media/inbound/photo.jpg");
+  });
+});

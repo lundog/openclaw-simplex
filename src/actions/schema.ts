@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { optionalPositiveIntegerSchema } from "openclaw/plugin-sdk/channel-actions";
 import type {
   ChannelMessageActionName,
   ChannelMessageToolSchemaContribution,
@@ -145,11 +146,9 @@ export function buildSimplexMessageToolSchema(): ChannelMessageToolSchemaContrib
           description: "Allow multiple poll selections.",
         })
       ),
-      pollDurationHours: Type.Optional(
-        Type.Integer({
-          description: "Optional poll window in hours.",
-        })
-      ),
+      pollDurationHours: optionalPositiveIntegerSchema({
+        description: "Optional poll window in hours.",
+      }),
       displayName: Type.Optional(
         Type.String({
           description: "New SimpleX group display name.",

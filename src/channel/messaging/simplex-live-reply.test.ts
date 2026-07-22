@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
-import { createSimplexLiveReplyController } from "./simplex-send.js";
+import {
+  createSimplexLiveReplyController,
+  resolveSimplexLiveStreamingConfig,
+} from "./simplex-send.js";
 
 const simplexClientMock = vi.hoisted(() => ({
   sendMessages: vi.fn(async () => [{ chatItem: { meta: { itemId: 10 } } }]),
@@ -119,5 +122,125 @@ describe("simplex live reply controller", () => {
     await expect(live.updatePartial({ text: "hello world" })).resolves.toBe(false);
     await expect(live.finalize({ text: "hello world!" })).resolves.toBe(false);
     expect(errors.join("\n")).toContain("update failed");
+  });
+});
+
+describe("live draft chunking dual-read", () => {
+  function accountWith(config: ResolvedSimplexAccount["config"]): ResolvedSimplexAccount {
+    return { ...account({}), config: { ...config } };
+  }
+
+  it("keeps the legacy streaming defaults when draftChunk is unset", () => {
+    const resolved = resolveSimplexLiveStreamingConfig(
+      accountWith({ streaming: { nativeTransport: true } })
+    );
+
+    expect(resolved).toMatchObject({
+      enabled: true,
+      throttleMs: 2000,
+      minChars: 24,
+      wordBoundary: true,
+    });
+    expect(resolved.maxChars).toBeUndefined();
+    expect(resolved.breakPreference).toBeUndefined();
+  });
+
+  it("keeps explicit legacy streaming values when draftChunk is unset", () => {
+    expect(
+      resolveSimplexLiveStreamingConfig(
+        accountWith({
+          streaming: { nativeTransport: true, minChars: 5, throttleMs: 50, wordBoundary: false },
+        })
+      )
+    ).toMatchObject({ minChars: 5, throttleMs: 50, wordBoundary: false });
+  });
+
+  it("switches to the shared resolver once draftChunk is configured", () => {
+    const resolved = resolveSimplexLiveStreamingConfig(
+      accountWith({
+        streaming: { nativeTransport: true, minChars: 5, throttleMs: 50 },
+        draftChunk: { minChars: 120, maxChars: 600, breakPreference: "sentence" },
+      })
+    );
+
+    expect(resolved).toMatchObject({
+      enabled: true,
+      // throttleMs stays plugin-owned: the host chunking model has no equivalent.
+      throttleMs: 50,
+      minChars: 120,
+      maxChars: 600,
+      breakPreference: "sentence",
+    });
+  });
+});
+
+describe("live draft rendering with draftChunk", () => {
+  afterEach(() => {
+    simplexClientMock.sendMessages.mockClear();
+    simplexClientMock.editMessage.mockClear();
+  });
+
+  it("trims a partial draft back to the last sentence boundary", async () => {
+    const live = createSimplexLiveReplyController({
+      cfg: {},
+      account: {
+        ...account({ nativeTransport: true, throttleMs: 0 }),
+        config: {
+          connection: { wsUrl: "ws://127.0.0.1:5225" },
+          streaming: { nativeTransport: true, throttleMs: 0 },
+          draftChunk: { minChars: 1, breakPreference: "sentence" },
+        },
+      },
+      chatRef: "@123",
+    });
+
+    await live.updatePartial({ text: "First done. Second half unfinis" });
+
+    expect(simplexClientMock.sendMessages).toHaveBeenCalledWith({
+      chatRef: "@123",
+      composedMessages: [
+        {
+          msgContent: { type: "text", text: "First done." },
+          quotedItemId: undefined,
+          mentions: {},
+        },
+      ],
+      liveMessage: true,
+      ttl: undefined,
+    });
+  });
+
+  it("caps the live draft at maxChars but never truncates the final reply", async () => {
+    const live = createSimplexLiveReplyController({
+      cfg: {},
+      account: {
+        ...account({ nativeTransport: true, throttleMs: 0 }),
+        config: {
+          connection: { wsUrl: "ws://127.0.0.1:5225" },
+          streaming: { nativeTransport: true, throttleMs: 0 },
+          draftChunk: { minChars: 1, maxChars: 10, breakPreference: "newline" },
+        },
+      },
+      chatRef: "@123",
+    });
+
+    await live.updatePartial({ text: "abcdefghijklmnopqrstuvwxyz" });
+    expect(simplexClientMock.sendMessages).toHaveBeenCalledWith(
+      expect.objectContaining({
+        composedMessages: [
+          expect.objectContaining({ msgContent: { type: "text", text: "abcdefghij" } }),
+        ],
+      })
+    );
+
+    await live.finalize({ text: "abcdefghijklmnopqrstuvwxyz" });
+    expect(simplexClientMock.editMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        updatedMessage: expect.objectContaining({
+          msgContent: { type: "text", text: "abcdefghijklmnopqrstuvwxyz" },
+        }),
+        liveMessage: false,
+      })
+    );
   });
 });

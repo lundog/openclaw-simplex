@@ -41,6 +41,16 @@ describe("simplex keyed store fallback", () => {
         openKeyedStore() {
           throw new Error("openKeyedStore is only available for bundled plugins in this release");
         },
+        openSyncKeyedStore() {
+          throw new Error(
+            "openSyncKeyedStore is only available for bundled plugins in this release"
+          );
+        },
+        openChannelIngressQueue() {
+          throw new Error(
+            "openChannelIngressQueue is only available for bundled plugins in this release"
+          );
+        },
       },
     };
     const store = openSimplexKeyedStore<string>({

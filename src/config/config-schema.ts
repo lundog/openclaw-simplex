@@ -8,9 +8,10 @@ import {
   DmPolicySchema,
   GroupPolicySchema,
   MarkdownConfigSchema,
+  MentionPatternsPolicySchema,
   ToolPolicySchema,
 } from "openclaw/plugin-sdk/channel-config-schema";
-import { z } from "zod";
+import { z } from "openclaw/plugin-sdk/zod";
 import { simplexChannelConfigUiHints } from "./config-ui-hints.js";
 
 const SimplexAllowFromListSchema = AllowFromListSchema.pipe(z.array(z.string()).optional());
@@ -55,6 +56,19 @@ const SimplexStreamingSchema = z
   })
   .strict();
 
+/**
+ * OpenClaw's canonical live-draft chunking shape. Reading it through the SDK
+ * keeps SimpleX aligned with host streaming conventions; when unset, the legacy
+ * `streaming.minChars` / `streaming.wordBoundary` behavior is preserved.
+ */
+const SimplexDraftChunkSchema = z
+  .object({
+    minChars: z.number().int().positive().optional(),
+    maxChars: z.number().int().positive().optional(),
+    breakPreference: z.enum(["paragraph", "newline", "sentence"]).optional(),
+  })
+  .strict();
+
 const SimplexFilePolicySchema = z
   .object({
     autoAccept: z.boolean().optional(),
@@ -78,11 +92,13 @@ export const SimplexAccountConfigSchema = z
     blockStreaming: z.boolean().optional(),
     blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
     streaming: SimplexStreamingSchema.optional(),
+    draftChunk: SimplexDraftChunkSchema.optional(),
     messageTtlSeconds: z.number().int().positive().optional(),
     filePolicy: SimplexFilePolicySchema.optional(),
     experimentalChannels: z.boolean().optional(),
     groupPolicy: GroupPolicySchema.optional(),
     groupAllowFrom: SimplexAllowFromListSchema,
+    mentionPatterns: MentionPatternsPolicySchema.optional(),
     groups: z.object({}).catchall(groupConfigSchema).optional(),
     connection: SimplexConnectionSchema.optional(),
   })

@@ -1,6 +1,7 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 import { resolveInboundMentionDecision } from "openclaw/plugin-sdk/channel-inbound";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
+import type { SimplexAccountConfig } from "../../config/config-schema.js";
 import { SIMPLEX_CHANNEL_ID } from "../../constants.js";
 import type { ResolvedSimplexAccount } from "../../types/config.js";
 import type { SimplexChatContext } from "../../types/events.js";
@@ -35,7 +36,15 @@ export type SimplexInboundCore = {
       }) => string;
     };
     mentions: {
-      buildMentionRegexes: (cfg: OpenClawConfig, agentId: string) => RegExp[];
+      buildMentionRegexes: (
+        cfg: OpenClawConfig,
+        agentId: string,
+        options?: {
+          provider?: string;
+          conversationId?: string | null;
+          providerPolicy?: SimplexAccountConfig["mentionPatterns"];
+        }
+      ) => RegExp[];
       matchesMentionPatterns: (text: string, mentionRegexes: RegExp[]) => boolean;
     };
     text: {
@@ -212,7 +221,11 @@ export async function resolveSimplexInboundAccess(params: {
       account,
       groupId: context.chatId,
     });
-    const mentionRegexes = core.channel.mentions.buildMentionRegexes(cfg, params.routeAgentId);
+    const mentionRegexes = core.channel.mentions.buildMentionRegexes(cfg, params.routeAgentId, {
+      provider: SIMPLEX_CHANNEL_ID,
+      conversationId: String(context.chatId),
+      providerPolicy: account.config.mentionPatterns,
+    });
     const wasMentioned = core.channel.mentions.matchesMentionPatterns(rawBody, mentionRegexes);
     const allowTextCommands = core.channel.commands.shouldHandleTextCommands({
       cfg,
